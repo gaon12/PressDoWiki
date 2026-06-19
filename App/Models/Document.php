@@ -5,6 +5,7 @@ use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
 use PressDo\App\Core\Controller;
+use PressDo\App\Helpers\SqlDialect;
 
 class Document extends \PressDo\App\Core\Model
 {
@@ -33,7 +34,7 @@ class Document extends \PressDo\App\Core\Model
     public static function recreate(string $uuid): void
     {
         $db = self::db();
-        $uuid = self::uuid2bin(self::generateUuid());
+        $uuid = self::uuid2bin($uuid);
 
         try {
             $d = $db->prepare("UPDATE `document` SET `status`='normal' WHERE uuid=?");
@@ -78,11 +79,11 @@ class Document extends \PressDo\App\Core\Model
             throw new ErrorException($err->getMessage().': 문서 데이터 조회 중 오류 발생');
         }
 
-        if ($d->rowCount() < 1)
+        $res = $d->fetch(PDO::FETCH_ASSOC);
+        if ($res === false)
             $res = null;
         else {
-            $res = $d->fetch(PDO::FETCH_ASSOC);
-            if ($res['content'] == null && $res['rev'] !== 1 && $res['status'] !== 'delete') {
+            if ($res['content'] == null && (int) $res['rev'] !== 1 && $res['status'] !== 'delete') {
                 $q = $db->prepare("SELECT content FROM history WHERE content IS NOT NULL AND document=? AND rev < ? ORDER BY `datetime` DESC LIMIT 1");
                 try {
                     $q->execute([$uuid, $res['rev']]);
@@ -90,8 +91,9 @@ class Document extends \PressDo\App\Core\Model
                     throw new ErrorException($err->getMessage().': 문서 본문 조회 중 오류 발생');
                 }
 
-                if ($q->rowCount() === 1)
-                    $res['content'] = $q->fetch(PDO::FETCH_ASSOC)['content'];               
+                $previous = $q->fetch(PDO::FETCH_ASSOC);
+                if ($previous !== false)
+                    $res['content'] = $previous['content'];
             }
             $res['uuid'] = self::bin2uuid($res['uuid']);
         }
@@ -224,14 +226,14 @@ class Document extends \PressDo\App\Core\Model
         $db = self::db();
 
         try {
-            $c = $db->prepare("SELECT uuid FROM `document` WHERE `namespace`=? AND BINARY `title`=?");
+            $c = $db->prepare("SELECT uuid, backlink_updated FROM `document` WHERE `namespace`=? AND ".SqlDialect::caseSensitiveEquals('`title`'));
             $c->execute([$namespace, $title]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 문서 UUID 조회 중 오류 발생');
         }
 
         $f = $c->fetch(PDO::FETCH_ASSOC);
-        if ($c->rowCount() < 1)
+        if ($f === false)
             return false;
         else {
             $backlinkrefreshed = boolval($f['backlink_updated']);
@@ -247,10 +249,14 @@ class Document extends \PressDo\App\Core\Model
      */
     public static function getBulkTitle(array $ids): array
     {
+        if ($ids === []) {
+            return [];
+        }
+
         $db = self::db();
         try {
             $ORSTATEMENT = str_repeat(',?', count($ids) - 1);
-            $c = $db->prepare("SELECT `docid`,`namespace`,`title` FROM `document` WHERE `docid` IN (?".$ORSTATEMENT.")");
+            $c = $db->prepare("SELECT `uuid`,`namespace`,`title` FROM `document` WHERE `uuid` IN (?".$ORSTATEMENT.")");
             $c->execute($ids);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': ID로 문서명 조회 중 오류 발생');
@@ -278,7 +284,8 @@ class Document extends \PressDo\App\Core\Model
             throw new ErrorException($err->getMessage().': ID로 문서명 조회 중 오류 발생');
         }
 
-        $res = $c->rowCount() < 1 ? false : $c->fetch(PDO::FETCH_ASSOC);
+        $res = $c->fetch(PDO::FETCH_ASSOC);
+        $res = $res === false ? false : $res;
         return $res;
     }
 
@@ -293,7 +300,8 @@ class Document extends \PressDo\App\Core\Model
     {
         $db = self::db();
         try {
-            $d = $db->prepare("SELECT `namespace`,`title` FROM `document` WHERE `namespace`=? ORDER BY RAND() LIMIT ".$quantity);
+            $quantity = max(1, min(100, $quantity));
+            $d = $db->prepare("SELECT `namespace`,`title` FROM `document` WHERE `namespace`=? ORDER BY ".SqlDialect::randomOrder()." LIMIT ".$quantity);
             $d->execute([$namespace]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 무작위 문서 불러오기 중 오류 발생');
@@ -308,8 +316,9 @@ class Document extends \PressDo\App\Core\Model
         ++$count;
         
         try {
+            $limit = SqlDialect::limit($from, $count);
             $d = $db->query("SELECT d.namespace, d.title, MAX(h.`datetime`) as dt FROM `history` as h INNER JOIN `document` as d ON d.uuid = h.document
-                WHERE NOT EXISTS (SELECT 1 FROM links as l WHERE l.from_uuid = h.document AND l.type = 'redirect') AND d.namespace != '사용자' GROUP BY h.`document` ORDER BY dt ASC LIMIT $from, $count");
+                WHERE NOT EXISTS (SELECT 1 FROM links as l WHERE l.from_uuid = h.document AND l.type = 'redirect') AND d.namespace != '사용자' GROUP BY h.`document` ORDER BY dt ASC $limit");
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 오래된 문서 불러오기 중 오류 발생');
         }
@@ -322,11 +331,13 @@ class Document extends \PressDo\App\Core\Model
         --$from;
         ++$count;
         
+        $order = SqlDialect::orderDirection($order, 'DESC');
+        $limit = SqlDialect::limit($from, $count);
         $sql = "SELECT d.namespace, d.title, len FROM
             (SELECT document, `datetime`, CHAR_LENGTH(`content`) as len,
                 RANK() OVER (PARTITION BY document ORDER BY `datetime` DESC) AS rnk FROM `history`
             ) AS h INNER JOIN `document` as d ON d.uuid = document WHERE d.namespace = '문서' AND rnk = 1 AND NOT EXISTS
-            (SELECT 1 FROM links as l WHERE l.from_uuid = document AND l.type = 'redirect') GROUP BY `document` ORDER BY len $order LIMIT $from, $count";
+            (SELECT 1 FROM links as l WHERE l.from_uuid = document AND l.type = 'redirect') GROUP BY `document` ORDER BY len $order $limit";
         try {
             $d = $db->query($sql);
         } catch (PDOException $err) {
@@ -341,7 +352,8 @@ class Document extends \PressDo\App\Core\Model
         --$from;
         ++$count;
         try {
-            $d = $db->prepare("SELECT l.namespace, l.title FROM `links` as l WHERE l.namespace = ? AND NOT EXISTS (SELECT 1 FROM document as d WHERE d.namespace = l.namespace AND d.title = l.title) LIMIT $from, $count");
+            $limit = SqlDialect::limit($from, $count);
+            $d = $db->prepare("SELECT l.namespace, l.title FROM `links` as l WHERE l.namespace = ? AND NOT EXISTS (SELECT 1 FROM document as d WHERE d.namespace = l.namespace AND d.title = l.title) $limit");
             $d->execute([$namespace]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 작성이 필요한 문서 불러오기 중 오류 발생');
@@ -355,7 +367,8 @@ class Document extends \PressDo\App\Core\Model
         --$from;
         ++$count;
         try {
-            $d = $db->prepare("SELECT d.namespace, d.title FROM document as d WHERE d.namespace = ? AND NOT EXISTS (SELECT 1 FROM links as l WHERE d.uuid = l.from_uuid AND l.type = 'category') ORDER BY d.title ASC LIMIT $from, $count");
+            $limit = SqlDialect::limit($from, $count);
+            $d = $db->prepare("SELECT d.namespace, d.title FROM document as d WHERE d.namespace = ? AND NOT EXISTS (SELECT 1 FROM links as l WHERE d.uuid = l.from_uuid AND l.type = 'category') ORDER BY d.title ASC $limit");
             $d->execute([$namespace]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 분류되지 않은 문서 불러오기 중 오류 발생');
@@ -369,7 +382,8 @@ class Document extends \PressDo\App\Core\Model
         --$from;
         ++$count;
         try {
-            $d = $db->prepare("SELECT d.namespace, d.title FROM document as d WHERE d.namespace = ? AND NOT EXISTS (SELECT 1 FROM links as l WHERE d.uuid = l.from_uuid AND l.type = 'category') ORDER BY d.title ASC LIMIT $from, $count");
+            $limit = SqlDialect::limit($from, $count);
+            $d = $db->prepare("SELECT d.namespace, d.title FROM document as d WHERE d.namespace = ? AND NOT EXISTS (SELECT 1 FROM links as l WHERE d.uuid = l.from_uuid AND l.type = 'category') ORDER BY d.title ASC $limit");
             $d->execute([$namespace]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 분류되지 않은 문서 불러오기 중 오류 발생');

@@ -5,6 +5,7 @@ use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
 use PressDo\App\Helpers\Namespaces;
+use PressDo\App\Helpers\SqlDialect;
 
 class History extends \PressDo\App\Core\Model
 {
@@ -23,14 +24,20 @@ class History extends \PressDo\App\Core\Model
             $nv = self::getVersion($uuid);
             $uuid = self::uuid2bin($uuid);
             
-            if (!empty($from))
-                $str = 'DESC LIMIT '.$nv-$from.',';
-            elseif (!empty($until))
-                $str = 'ASC LIMIT '.$until-1 .',';
-            else
-                $str = 'DESC LIMIT';
+            if (!empty($from)) {
+                $direction = 'DESC';
+                $offset = max(0, $nv - $from);
+            } elseif (!empty($until)) {
+                $direction = 'ASC';
+                $offset = max(0, $until - 1);
+            } else {
+                $direction = 'DESC';
+                $offset = 0;
+            }
 
-            $d = $db->prepare("SELECT uuid, `comment`, `action`, `reverted_version`, contributor_m, contributor_i, `acl_changed`, `moved_from`, `moved_to`, `datetime`, `edit_request_uri`, `count`, `rev`, revstatus, hide_log_user, mark_troll_user FROM `history` WHERE `document`=? ORDER BY `datetime` $str $count");
+            $limit = SqlDialect::limit($offset, $count);
+
+            $d = $db->prepare("SELECT uuid, `comment`, `action`, `reverted_version`, contributor_m, contributor_i, `acl_changed`, `moved_from`, `moved_to`, `datetime`, `edit_request_uri`, `count`, `rev`, revstatus, hide_log_user, mark_troll_user FROM `history` WHERE `document`=? ORDER BY `datetime` $direction $limit");
             $d->execute([$uuid]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 문서 역사 조회 중 오류 발생');
@@ -122,16 +129,16 @@ class History extends \PressDo\App\Core\Model
         $db = self::db();
         $id = self::uuid2bin($uuid);
         if (!empty($from))
-            $limit = ($count - $from).', 100';
+            $limit = SqlDialect::limit($count - $from, 100);
         elseif (!empty($until))
-            $limit = ($count - $from - 100 < 1 ? 1 : $count - $from - 100).','.($count - $from);
+            $limit = SqlDialect::limit($count - $until - 100 < 1 ? 1 : $count - $until - 100, min(100, $count - $until));
         else
-            $limit = '100';
+            $limit = 'LIMIT 100';
 
 
         try {
             $d = $db->prepare("SELECT `namespace`, `title`, h.`uuid`,h.`action`,h.`comment`,h.`reverted_version`,h.`count`,h.`document`, h.`acl_changed`, h.`moved_from`, h.`moved_to`, h.`datetime`, h.rev FROM `history` as h, document 
-                WHERE h.document = document.uuid AND (contributor_m = :id OR contributor_i = :id) ORDER BY `datetime` DESC LIMIT $limit");
+                WHERE h.document = document.uuid AND (contributor_m = :id OR contributor_i = :id) ORDER BY `datetime` DESC $limit");
             $d->execute(['id' => $id]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 기여내역 가져오는 중 오류 발생');
@@ -146,8 +153,8 @@ class History extends \PressDo\App\Core\Model
 
         try {
             $d = $db->prepare("SELECT `namespace`, title, t.urlstr, topic, `datetime`, `no` FROM thread_content t INNER JOIN `thread` x ON t.urlstr = x.urlstr INNER JOIN `document` AS d ON x.document = d.uuid
-                WHERE (contributor_m = :id OR contributor_i = :id) AND `datetime` >= unix_timestamp() - 2592000 ORDER BY `datetime` DESC LIMIT 100");
-            $d->execute(['id' => $id]);
+                WHERE (contributor_m = :id OR contributor_i = :id) AND `datetime` >= :min_time ORDER BY `datetime` DESC LIMIT 100");
+            $d->execute(['id' => $id, 'min_time' => time() - 2592000]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 토론 기여내역 가져오는 중 오류 발생');
         }

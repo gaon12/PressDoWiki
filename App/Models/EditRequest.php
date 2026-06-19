@@ -100,8 +100,8 @@ class EditRequest extends \PressDo\App\Core\Model
         $db = self::db();
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET content=?, comment=?, count=?, lastedit=unix_timestamp() WHERE `urlstr`=?");
-            $d->execute([$content, $comment, $newdifflen, $slug]);
+            $d = $db->prepare("UPDATE `editrequest` SET content=?, comment=?, count=?, lastedit=? WHERE `urlstr`=?");
+            $d->execute([$content, $comment, $newdifflen, time(), $slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 수정 중 오류 발생');
         }
@@ -118,8 +118,8 @@ class EditRequest extends \PressDo\App\Core\Model
             $cont_i = self::uuid2bin($cont_i);
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET `status`='accepted', acceptrev=?, lastedit=unix_timestamp(), executor_m=?, executor_i=? WHERE `urlstr`=?");
-            $d->execute([$acceptrev, $cont_m, $cont_i, $slug]);
+            $d = $db->prepare("UPDATE `editrequest` SET `status`='accepted', acceptrev=?, lastedit=?, executor_m=?, executor_i=? WHERE `urlstr`=?");
+            $d->execute([$acceptrev, time(), $cont_m, $cont_i, $slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 승인 중 오류 발생');
         }
@@ -154,8 +154,8 @@ class EditRequest extends \PressDo\App\Core\Model
         $status = $lock ? 'locked' : 'close';
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET `status`=?, lastedit=unix_timestamp(), executor_m=?, executor_i=?, reason=? WHERE `urlstr`=?");
-            $d->execute([$status, $cont_m, $cont_i, $reason, $slug]);
+            $d = $db->prepare("UPDATE `editrequest` SET `status`=?, lastedit=?, executor_m=?, executor_i=?, reason=? WHERE `urlstr`=?");
+            $d->execute([$status, time(), $cont_m, $cont_i, $reason, $slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 닫기기 중 오류 발생');
         }
@@ -166,8 +166,8 @@ class EditRequest extends \PressDo\App\Core\Model
         $db = self::db();
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET `status`='open', lastedit=unix_timestamp() WHERE `urlstr`=?");
-            $d->execute([$slug]);
+            $d = $db->prepare("UPDATE `editrequest` SET `status`='open', lastedit=? WHERE `urlstr`=?");
+            $d->execute([time(), $slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 열기기 중 오류 발생');
         }

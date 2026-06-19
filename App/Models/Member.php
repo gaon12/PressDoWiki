@@ -26,7 +26,7 @@ class Member extends \PressDo\App\Core\Model
         $user = $d->fetch(PDO::FETCH_ASSOC);
         
         // not found
-        if ($d->rowCount() !== 1 || !password_verify($pw, $user['password']))
+        if ($user === false || !password_verify($pw, $user['password']))
             return false;
         
         $user['uuid'] = self::bin2uuid($user['uuid']);
@@ -92,7 +92,7 @@ class Member extends \PressDo\App\Core\Model
             throw new ErrorException($err->getMessage().': 사용자 조회 중 오류 발생');
         }
         $data = $d->fetch(PDO::FETCH_ASSOC);
-        if($d->rowCount() < 1)
+        if($data === false)
             return false;
         else {
             $data['uuid'] = self::bin2uuid($data['uuid']);
@@ -133,17 +133,26 @@ class Member extends \PressDo\App\Core\Model
     {
         $db = self::db();
         $c = explode('-', $code);
+        if (count($c) !== 2 || !ctype_xdigit($c[1])) {
+            return false;
+        }
+
+        $key = hex2bin($c[1]);
+        if ($key === false) {
+            return false;
+        }
+
         $ip = inet_pton($ip);
         try {
-            $d = $db->prepare("SELECT email, ip FROM `email_keys` WHERE MD5(email)=? AND `key`=? AND `time` >= unix_timestamp()-86400");
-            $d->execute([$c[0], hex2bin($c[1])]);
+            $d = $db->prepare("SELECT email, ip FROM `email_keys` WHERE MD5(email)=? AND `key`=? AND `time` >= ?");
+            $minTime = time() - 86400;
+            $d->execute([$c[0], $key, $minTime]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 이메일 인증 확인 중 오류 발생');
         }
-        if ($d->rowCount() < 1)
-            return false;
-
         $data = $d->fetch(PDO::FETCH_ASSOC);
+        if ($data === false)
+            return false;
         
         if(!$strict_ip || $data['ip'] == $ip)
             return $data['email'];
@@ -176,10 +185,9 @@ class Member extends \PressDo\App\Core\Model
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 인증 코드 정보 확인 중 오류 발생');
         }
-        if ($d->rowCount() < 1)
-            return false;
-
         $data = $d->fetch(PDO::FETCH_ASSOC);
+        if ($data === false)
+            return false;
         
         if ($time > $data['registered'] + 86400)
             return true;
@@ -313,8 +321,8 @@ class Member extends \PressDo\App\Core\Model
     {
         $db = self::db();
         try {
-            $d = $db->prepare("UPDATE `webauthn` SET lastuse=UNIX_TIMESTAMP() WHERE `name`=?");
-            $d->execute([$name]);
+            $d = $db->prepare("UPDATE `webauthn` SET lastuse=? WHERE `name`=?");
+            $d->execute([time(), $name]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': Webauthn 사용 기록 중 오류 발생');
         }
@@ -329,7 +337,7 @@ class Member extends \PressDo\App\Core\Model
         try {
             $e = $db->prepare("UPDATE `member` SET `perm`=? WHERE `uuid`=?");
             $e->execute([$c,$targetuuid]);
-            $f = $db->prepare("INSERT INTO `BlockHistory` (id,executor_m,target_member,action,granted) VALUES(0,?,?,'grant',?)");
+            $f = $db->prepare("INSERT INTO `BlockHistory` (id,executor_m,target_member,action,granted) VALUES(NULL,?,?,'grant',?)");
             $f->execute([$executoruuid, $targetuuid, $record]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': Webauthn 목록 조회 중 오류 발생');
@@ -348,7 +356,7 @@ class Member extends \PressDo\App\Core\Model
         $d = $db->prepare("SELECT ip FROM ip WHERE uuid=?");
         $d->execute([$uuid]);
         $data = $d->fetch(PDO::FETCH_ASSOC);
-        if($d->rowCount() < 1)
+        if($data === false)
             return false;
         else
             return inet_ntop($data['ip']);
@@ -366,7 +374,7 @@ class Member extends \PressDo\App\Core\Model
         $d = $db->prepare("SELECT username FROM member WHERE uuid=?");
         $d->execute([$uuid]);
         $data = $d->fetch(PDO::FETCH_ASSOC);
-        if($d->rowCount() < 1)
+        if($data === false)
             return false;
         else
             return $data['username'];
@@ -379,16 +387,20 @@ class Member extends \PressDo\App\Core\Model
         $target = self::uuid2bin($id);
         $sqlstr = '';
 
-        if($from !== null)
-            $sqlstr = "AND `datetime`<=$from";
-        elseif($until !== null)
-            $sqlstr = "AND `datetime`>=$until";
+        $params = [$target];
+        if($from !== null) {
+            $sqlstr = "AND `datetime`<=?";
+            $params[] = (int) $from;
+        } elseif($until !== null) {
+            $sqlstr = "AND `datetime`>=?";
+            $params[] = (int) $until;
+        }
 
         
 
         $d = $db->prepare("SELECT ip, `datetime` FROM `login_history` WHERE `uuid`=? $sqlstr ORDER BY `datetime` DESC LIMIT 50");
-        $d->execute([$target]);
-        $e = $db->prepare("INSERT INTO `BlockHistory` (id,executor_m,target_member,action) VALUES(0,?,?,'login_history')");
+        $d->execute($params);
+        $e = $db->prepare("INSERT INTO `BlockHistory` (id,executor_m,target_member,action) VALUES(NULL,?,?,'login_history')");
         $e->execute([$exec, $target]);
         return $d->fetchAll();
     }
@@ -428,8 +440,9 @@ class Member extends \PressDo\App\Core\Model
 
         $d = $db->prepare("SELECT user FROM cookies WHERE `name`=? AND `value`=?");
         $d->execute([$name, $token]);
-        if ($d->rowCount() > 0)
-            return self::bin2uuid($d->fetch(PDO::FETCH_ASSOC)['user']);
+        $user = $d->fetch(PDO::FETCH_ASSOC);
+        if ($user !== false)
+            return self::bin2uuid($user['user']);
         else
             return null;
     }
@@ -438,7 +451,10 @@ class Member extends \PressDo\App\Core\Model
     {
         $db = self::db();
         $exec = self::uuid2bin($uuid);
-        $token = self::uuid2bin($value);
+        $token = hex2bin($value);
+        if ($token === false) {
+            return;
+        }
 
         $d = $db->prepare("DELETE FROM cookies WHERE user=? AND `name`=? AND `value`=?");
         $d->execute([$exec, $name, $token]);

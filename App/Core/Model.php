@@ -77,7 +77,7 @@ class Model {
         $d = $db->prepare("SELECT uuid FROM ip WHERE ip=?");
         $d->execute([inet_pton($ip)]);
         $data = $d->fetch(PDO::FETCH_ASSOC);
-        if($d->rowCount() < 1){
+        if($data === false){
             if ($noinsert)
                 return null;
             $uuid = self::generateUuid();
@@ -109,11 +109,12 @@ class Model {
      */
     public static function generateUuid(): string
     {
-        return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-        );
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+        $hex = bin2hex($bytes);
+
+        return substr($hex, 0, 8).'-'.substr($hex, 8, 4).'-'.substr($hex, 12, 4).'-'.substr($hex, 16, 4).'-'.substr($hex, 20);
     }
 
     public static function bin2uuid(string $uuid): string

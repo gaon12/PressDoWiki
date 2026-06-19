@@ -17,8 +17,9 @@
  ### 요구 사항
  - PHP가 설치되어 있어야 합니다.
  - composer로 패키지 설치가 가능해야 합니다.
- - MySQL, MariaDB 중 하나가 설치되어 있어야 합니다.
- - 확인이 필요한 항목: ~~PostgreSQL, CUBRID, Oracle Database, MSSQL, Firebird, IBM DB2, SQLite~~
+ - MySQL, MariaDB, SQLite 중 하나가 설치되어 있어야 합니다. SQLite를 사용할 경우 PHP `pdo_sqlite` 확장이 필요합니다.
+ - 확인이 필요한 항목: ~~PostgreSQL, CUBRID, Oracle Database, MSSQL, Firebird, IBM DB2~~
+ - SQLite 초기 스키마는 `templates/database_scheme.sqlite.sql`을 사용하세요. `database.type`은 `sqlite`, `database.name`은 SQLite 파일 경로 또는 `:memory:`로 설정합니다.
  - php-geoip (PECL 확장) 또는 Maxmind GeoIP2 데이터베이스 (city)가 있어야 합니다: php-geoip가 우선 적용됩니다.
  - 파일이 업로드될 공간이 있어야 합니다. (S3, Local 중 선택)
  - ngram Parser가 지원되는 데이터베이스를 사용하거나 별도의 검색 엔진 소프트웨어가 설치되어 있어야 합니다.

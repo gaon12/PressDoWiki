@@ -149,6 +149,18 @@ CREATE TABLE `config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
+DROP TABLE IF EXISTS `email_keys`;
+CREATE TABLE `email_keys` (
+  `email` varchar(256) NOT NULL,
+  `ip` varbinary(16) NOT NULL,
+  `key` binary(64) NOT NULL,
+  `time` int(11) NOT NULL DEFAULT unix_timestamp(),
+  PRIMARY KEY (`email`),
+  KEY `key` (`key`),
+  KEY `time` (`time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
 DROP TABLE IF EXISTS `cookies`;
 CREATE TABLE `cookies` (
   `user` binary(16) NOT NULL,
@@ -238,6 +250,7 @@ CREATE TABLE `history` (
   `status` varchar(8) NOT NULL DEFAULT 'normal',
   `hide_log_user` binary(16) DEFAULT NULL,
   `mark_troll_user` binary(16) DEFAULT NULL,
+  `revstatus` varchar(16) NOT NULL DEFAULT 'normal',
   PRIMARY KEY (`uuid`),
   KEY `document` (`document`),
   KEY `contributor_i` (`contributor_i`),

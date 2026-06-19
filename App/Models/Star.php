@@ -65,6 +65,10 @@ class Star extends \PressDo\App\Core\Model
 
     public static function getStarredModifiedDate(array $uuidset): array
     {
+        if ($uuidset === []) {
+            return [];
+        }
+
         $db = self::db();
         $ORSTATEMENT = str_repeat(',?', count($uuidset) - 1);
         $sql = "SELECT `namespace`, `title`, `datetime` FROM  
@@ -93,12 +97,12 @@ class Star extends \PressDo\App\Core\Model
         $uuid = self::uuid2bin($uuid);
         $user = self::uuid2bin($user);
         try {
-            $d = $db->prepare("SELECT * FROM `starred` WHERE `document`=? AND `user`=?");
+            $d = $db->prepare("SELECT 1 FROM `starred` WHERE `document`=? AND `user`=?");
             $d->execute([$uuid, $user]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 별표여부 조회 중 오류 발생');
         }
-        return !($d->rowCount() < 1);
+        return $d->fetchColumn() !== false;
     }
 
     /**

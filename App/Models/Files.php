@@ -55,6 +55,6 @@ class Files extends \PressDo\App\Core\Model
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 파일 해시 조회 중 오류 발생');
         }
-        return $g->rowCount() > 0;
+        return $g->fetchColumn() !== false;
     }
 }

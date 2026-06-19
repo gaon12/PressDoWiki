@@ -4,6 +4,7 @@ namespace PressDo\App\Models;
 use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
+use PressDo\App\Helpers\SqlDialect;
 
 class Thread extends \PressDo\App\Core\Model
 {
@@ -41,6 +42,7 @@ class Thread extends \PressDo\App\Core\Model
     public static function recentDiscuss(string $from='thread', string $status='normal', string $order='DESC'): array
     {
         $db = self::db();
+        $order = SqlDialect::orderDirection($order, 'DESC');
 
         if ($status == 'close')
             $locked = "OR `status`='locked'";

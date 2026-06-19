@@ -104,11 +104,13 @@ class Backlink extends \PressDo\App\Core\Model
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 기존 순링크 삭제 중 오류 발생');
         }
-        try {
-            $d = $db->prepare("INSERT INTO `links`(namespace, title, from_uuid, type) VALUES".implode(', ', $addvals));
-            $d->execute($parvals);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 순링크 갱신 중 오류 발생');
+        if ($addvals !== []) {
+            try {
+                $d = $db->prepare("INSERT INTO `links`(namespace, title, from_uuid, type) VALUES".implode(', ', $addvals));
+                $d->execute($parvals);
+            } catch (PDOException $err) {
+                throw new ErrorException($err->getMessage().': 순링크 갱신 중 오류 발생');
+            }
         }
         try {
             $d = $db->prepare("UPDATE `document` SET `backlink_updated`='1' WHERE `uuid`=?");

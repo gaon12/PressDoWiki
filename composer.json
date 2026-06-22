@@ -16,7 +16,8 @@
 			"php tests/SqlDialectTest.php",
 			"php tests/ConfigTest.php",
 			"php tests/MediaWikiInterwikiTest.php",
-			"php tests/RequestTest.php"
+			"php tests/RequestTest.php",
+			"php tests/SchemaCompatibilityTest.php"
 		],
 		"check": [
 			"@lint",

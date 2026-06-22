@@ -76,6 +76,10 @@ Then set `database.type` and `database.name` in `config/config.json`. For SQLite
 
 For PostgreSQL, set `database.type` to `pgsql` and fill `database.host`, `database.port`, `database.name`, `database.user`, and `database.password`. PostgreSQL support currently shares the generic SQL dialect layer and uses LIKE-based search fallback instead of MySQL full-text search.
 
+```sh
+psql -U <user> -d <database> -f templates/database_scheme.pgsql.sql
+```
+
 ### Install Dependencies
 
 ```sh

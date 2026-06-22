@@ -4,16 +4,18 @@ namespace PressDo;
 require '../vendor/autoload.php';
 
 use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver,Csp};
-use PressDo\App\Core\Controller;
+use PressDo\App\Core\{Controller,Request,Response};
 
-date_default_timezone_set(GeoIp::getTimezone(Controller::getIpAddr()) ?? Config::get('wiki.timezone'));
+$request = Request::fromGlobals();
+
+date_default_timezone_set(GeoIp::getTimezone($request->serverString('REMOTE_ADDR')) ?? Config::get('wiki.timezone'));
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
 if(!session_id())
     session_start();
 
 $router = new Router();
-$router->handleURI($_SERVER['REQUEST_URI']);
+$router->handleURI($request->serverString('REQUEST_URI'));
 
 // initial
 $pageClassName = RouteControllerResolver::resolve($router->uri_data);
@@ -22,8 +24,7 @@ if (
     || !class_exists($pageClassName)
     || !is_subclass_of($pageClassName, Controller::class)
 ) {
-    http_response_code(404);
-    exit('Not Found');
+    Response::notFound();
 }
 
 $wiki = new $pageClassName();

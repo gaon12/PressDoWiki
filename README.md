@@ -40,7 +40,7 @@
 - PHP 8.4.1 or newer
 - Composer 2
 - PHP extensions required by Composer dependencies and runtime features, including PDO and the driver for your database
-- MariaDB/MySQL or SQLite
+- MariaDB/MySQL, SQLite, or PostgreSQL
 - A web server that uses `public/` as the document root
 - Optional: MaxMind GeoIP2 city database, S3-compatible object storage, SMTP, and S/MIME certificate files
 
@@ -73,6 +73,8 @@ sqlite3 path/to/wiki.sqlite < templates/database_scheme.sqlite.sql
 ```
 
 Then set `database.type` and `database.name` in `config/config.json`. For SQLite, `database.name` should be the SQLite file path.
+
+For PostgreSQL, set `database.type` to `pgsql` and fill `database.host`, `database.port`, `database.name`, `database.user`, and `database.password`. PostgreSQL support currently shares the generic SQL dialect layer and uses LIKE-based search fallback instead of MySQL full-text search.
 
 ### Install Dependencies
 

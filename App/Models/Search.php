@@ -40,7 +40,7 @@ class Search extends \PressDo\App\Core\Model
     {
         $db = self::db();
 
-        if (SqlDialect::isSqlite()) {
+        if (!SqlDialect::isMysql()) {
             $like = '%'.$keystring.'%';
             [$where, $args] = match ($target) {
                 'title_content' => ['(s.`text` LIKE ? OR d.title = ?)', [$like, $keystring]],

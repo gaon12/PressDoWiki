@@ -3,7 +3,7 @@ namespace PressDo;
 
 require '../vendor/autoload.php';
 
-use PressDo\App\Helpers\{Config,Router,GeoIp};
+use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver};
 use PressDo\App\Core\Controller;
 
 date_default_timezone_set(GeoIp::getTimezone(Controller::getIpAddr()) ?? Config::get('wiki.timezone'));
@@ -15,23 +15,17 @@ if(!session_id())
 $router = new Router();
 $router->handleURI($_SERVER['REQUEST_URI']);
 
-switch ($router->uri_data->page) {
-    case 'member':
-        // no break
-    case 'admin':
-        // no break
-    case 'api':
-        $fnClassNm = $router->uri_data->page.'\\'.str_replace('_', '', ucwords($router->uri_data->menu, '_'));
-        break;
-    case 'acl':
-        $fnClassNm = 'ACL';
-        break;
-    default:
-        $fnClassNm = str_replace('_', '',ucwords($router->uri_data->page, '_'));
+// initial
+$pageClassName = RouteControllerResolver::resolve($router->uri_data);
+if (
+    $pageClassName === null
+    || !class_exists($pageClassName)
+    || !is_subclass_of($pageClassName, Controller::class)
+) {
+    http_response_code(404);
+    exit('Not Found');
 }
 
-// initial
-$pageClassName = 'PressDo\App\Controllers\Pages\\'.$fnClassNm;
 $wiki = new $pageClassName();
 $wiki->uri_data = $router->uri_data;
 

@@ -14,7 +14,8 @@
 			"php tests/RouteControllerResolverTest.php",
 			"php tests/CspTest.php",
 			"php tests/SqlDialectTest.php",
-			"php tests/ConfigTest.php"
+			"php tests/ConfigTest.php",
+			"php tests/MediaWikiInterwikiTest.php"
 		],
 		"check": [
 			"@lint",

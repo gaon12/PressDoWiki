@@ -330,10 +330,14 @@ class DefaultParserBackend {
 		}
 
 		/* Unserialize data and load into associative array for easy lookup */
-		$arr = unserialize($data);
+		$arr = unserialize($data, array('allowed_classes' => false));
+		if(!is_array($arr) || !isset($arr['query']['interwikimap']) || !is_array($arr['query']['interwikimap'])) {
+			return;
+		}
+
 		if(isset($arr['query']['interwikimap'])) {
 			foreach($arr['query']['interwikimap'] as $site) {
-				if(isset($site['prefix']) && isset($site['url'])) {
+				if(is_array($site) && isset($site['prefix']) && isset($site['url'])) {
 					$this -> interwiki[$site['prefix']] = $site['url'];
 				}
 			}

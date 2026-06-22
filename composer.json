@@ -10,7 +10,8 @@
 		"lint": "php tests/lint.php",
 		"test": [
 			"php tests/SecurityTest.php",
-			"php tests/RouteControllerResolverTest.php"
+			"php tests/RouteControllerResolverTest.php",
+			"php tests/CspTest.php"
 		]
 	},
 	"require": {

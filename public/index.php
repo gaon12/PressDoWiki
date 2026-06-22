@@ -3,7 +3,7 @@ namespace PressDo;
 
 require '../vendor/autoload.php';
 
-use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver};
+use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver,Csp};
 use PressDo\App\Core\Controller;
 
 date_default_timezone_set(GeoIp::getTimezone(Controller::getIpAddr()) ?? Config::get('wiki.timezone'));
@@ -29,10 +29,7 @@ if (
 $wiki = new $pageClassName();
 $wiki->uri_data = $router->uri_data;
 
-header("Content-Security-Policy: default-src 'self'; img-src 'self' *.theseed.io secure.gravatar.com www.google-analytics.com 
-http://tn-skr2.smilevideo.jp data:; media-src *; child-src *; script-src 'self' 'unsafe-eval' 'unsafe-inline' www.google.com www.gstatic.com 
-www.googletagmanager.com www.google-analytics.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; connect-src 'self'; font-src 'self' 
-fonts.gstatic.com data:;");
+header('Content-Security-Policy: '.Csp::headerValue());
 
 // Controller
 $wiki->page = $wiki->makeData();

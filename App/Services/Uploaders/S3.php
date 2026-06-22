@@ -1,5 +1,5 @@
 <?php
-namespace Pressdo\App\Services\Uploaders;
+namespace PressDo\App\Services\Uploaders;
 
 use Aws\S3\S3Client;
 //use Aws\Exception\AwsException;

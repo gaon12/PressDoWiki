@@ -1,5 +1,5 @@
 <?php
-namespace Pressdo\App\Services\Uploaders;
+namespace PressDo\App\Services\Uploaders;
 
 //use PressDo\App\Services\DefaultConfig;
 

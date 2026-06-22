@@ -13,10 +13,13 @@ class View
 
     public object $skin;
 
+    public array $session;
+
     public array $params;
 
-    public function __contruct()
+    public function __construct(array $session = [])
     {
+        $this->session = $session;
     }
 
     /**

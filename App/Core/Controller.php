@@ -113,7 +113,7 @@ class Controller
      */
     private function getPage(): string
     {
-        $View = new View();
+        $View = new View($this->session);
         $View->renderInit();
 
         $license = $this->dataset['page']['view_name'] == 'License' ? json_decode(file_get_contents('../config/license.json'), true) : null;

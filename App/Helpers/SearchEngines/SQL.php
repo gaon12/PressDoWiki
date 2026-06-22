@@ -1,5 +1,5 @@
 <?php
-namespace Pressdo\App\Helpers\SearchEngines;
+namespace PressDo\App\Helpers\SearchEngines;
 
 use PressDo\App\Models\Search;
 

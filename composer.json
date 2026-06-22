@@ -12,7 +12,8 @@
 		"test": [
 			"php tests/SecurityTest.php",
 			"php tests/RouteControllerResolverTest.php",
-			"php tests/CspTest.php"
+			"php tests/CspTest.php",
+			"php tests/SqlDialectTest.php"
 		],
 		"check": [
 			"@lint",

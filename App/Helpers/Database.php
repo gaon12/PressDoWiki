@@ -40,11 +40,14 @@ class Database
 
             switch($type){
                 case 'mysql':
-                    // no break
-                case 'pgsql':
-                    // no break
                 case 'cubrid':
                     $dsn = $type.':dbname='.DefaultConfig::get('database.name').';host='.DefaultConfig::get('database.host').';port='.DefaultConfig::get('database.port').';charset=utf8';
+                    break;
+                case 'pgsql':
+                    if (!in_array('pgsql', PDO::getAvailableDrivers(), true)) {
+                        throw new ErrorException('PostgreSQL database type requires the pdo_pgsql PHP extension.');
+                    }
+                    $dsn = 'pgsql:dbname='.DefaultConfig::get('database.name').';host='.DefaultConfig::get('database.host').';port='.DefaultConfig::get('database.port');
                     break;
                 case 'oracle':
                     $dsn = 'oci:dbname='.DefaultConfig::get('database.host').'/'.DefaultConfig::get('database.name').';charset=utf8';
@@ -76,6 +79,8 @@ class Database
 
             if ($type === 'sqlite') {
                 self::configureSqlite(self::$instance);
+            } elseif ($type === 'pgsql') {
+                self::configurePostgresql(self::$instance);
             }
             
             if (!self::$instance) {
@@ -125,5 +130,10 @@ class Database
             $timestamp = strtotime($value);
             return $timestamp === false ? 0 : $timestamp;
         }, -1);
+    }
+
+    private static function configurePostgresql(PDO $pdo): void
+    {
+        $pdo->exec("SET client_encoding TO 'UTF8'");
     }
 }

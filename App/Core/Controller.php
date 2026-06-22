@@ -16,10 +16,13 @@ class Controller
 
     public array $error;
     public array $session, $api_config = [], $array, $dataset;
+    public Request $request;
     public $page, $alert;
 
     public function __construct()
     {
+        $this->request = Request::fromGlobals();
+
         if (!empty($_SESSION))
             $this->session = $_SESSION;
         else {
@@ -27,18 +30,18 @@ class Controller
                 'menus' => [],
                 'member' => null,
                 'ip' => self::getIPAddr(),
-                'ua' => $_SERVER['HTTP_USER_AGENT']
+                'ua' => $this->request->serverString('HTTP_USER_AGENT')
             ];
         }
         
         if (empty($this->session['member'])) {
-            if (!empty($_COOKIE['szczecin'])) {
+            if ($this->request->hasCookie('szczecin')) {
                 // auto-login
-                $uuid = Member::checkCookie('szczecin', $_COOKIE['szczecin']);
+                $uuid = Member::checkCookie('szczecin', $this->request->cookieString('szczecin'));
                 
                 if ($uuid !== null) {
                     // valid cookie
-                    $l = Member::login($uuid, $this->session['ip'], $_SERVER['HTTP_USER_AGENT']);
+                    $l = Member::login($uuid, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
                     $sess = self::getMemberData($uuid, $l['email'], $l['username'], $l['skin']);
                     $this->session['menus'] = $sess['menus'];
                     $this->session['member'] = $sess['member'];
@@ -126,7 +129,7 @@ class Controller
             'skinConfig' => $View->skin->config,
             'skinName' => $View->skin->name,
             'uri_data' => (array) $this->uri_data,
-            'request_uri' => $_SERVER['REQUEST_URI'],
+            'request_uri' => $this->request->serverString('REQUEST_URI'),
             'post' => $_POST,
             'license' => $license,
             'api_config' => $this->api_config

@@ -2,7 +2,7 @@
 namespace PressDo\App\Controllers\Pages\Member;
 
 use PressDo\App\Models\Member;
-use PressDo\App\Core\Controller;
+use PressDo\App\Core\{Controller,Response};
 use PressDo\App\Helpers\{Languages,Config};
 use lbuchs\WebAuthn\WebAuthn;
 use lbuchs\WebAuthn\WebAuthnException;
@@ -21,7 +21,7 @@ class Login extends Controller
             'view_name' => 'login',
             'title' => Languages::get('page', 'login'),
             'data' => [
-                'redirect' => $_GET['redirect']
+                'redirect' => $this->request->queryString('redirect')
             ],
             'menus' => [],
             'customData' => []
@@ -29,9 +29,12 @@ class Login extends Controller
 
         // 2차인증 처리
         if (!empty($this->session['temp']['uuid'])) {
-            if (json_decode($_POST['challenge']) !== null && $this->session['do2fa'] == 'webauthn')
+            $challenge = $this->request->postJson('challenge');
+            $pin = $this->request->postString('pin');
+
+            if ($challenge !== null && $this->session['do2fa'] == 'webauthn')
                 $this->verifyWebAuthn($page);
-            elseif (strlen($_POST['pin']) === 6 && is_numeric($_POST['pin']))
+            elseif (strlen($pin) === 6 && is_numeric($pin))
                 $this->verifyPin($page);
             else
                 unset($this->session['temp']);
@@ -42,32 +45,32 @@ class Login extends Controller
             } elseif (!empty($this->session['temp'])) {
                 $this->finishLogin();
             }
-        } elseif (isset($_POST['username']) && isset($_POST['password'])) {
+        } elseif ($this->request->hasPost('username') && $this->request->hasPost('password')) {
             // 1차 로그인
-            if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
+            if (!self::validateCaptcha($this->request->postString($this->api_config['captcha_token_name'] ?? ''))) {
                 $page['data']['error'] = 'captcha_failed';
                 return $page;
             }
 
-            $c = Member::checkMember($_POST['username'], $_POST['password']);
+            $c = Member::checkMember($this->request->postString('username'), $this->request->postString('password'));
             if (!$c) {
                 $page['data']['error'] = 'err_invalid_member';
                 return $page;
             }
 
-            $l = Member::login($c['uuid'], $this->session['ip'], $_SERVER['HTTP_USER_AGENT']);
+            $l = Member::login($c['uuid'], $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
             $l['uuid'] = $c['uuid'];
 
             unset($this->session['temp']);
             $this->session['temp'] = self::getMemberData($c['uuid'], $l['email'], $l['username'], $l['skin']);
             
-            if (isset($_POST['autologin']))
+            if ($this->request->hasPost('autologin'))
                 $this->session['szczecin'] = true;
             else
                 unset($this->session['szczecin']);
 
             // 2차 로그인
-            if (empty($_COOKIE['podgorica']) || Member::checkCookie('podgorica', $_COOKIE['podgorica']) === null) { // && !in_array('disable_two_factor_login', $sps)
+            if (!$this->request->hasCookie('podgorica') || Member::checkCookie('podgorica', $this->request->cookieString('podgorica')) === null) { // && !in_array('disable_two_factor_login', $sps)
                 $this->setup2fa($l, $page['data']);
                 return $page;
             }
@@ -122,7 +125,11 @@ class Login extends Controller
     {
         $passkeys = Member::getUserWebauthn($this->session['temp']['uuid']);
         $webauthn = new WebAuthn(Config::get('wiki.site_name'), Config::get('wiki.domain'));
-        $data = json_decode($_POST['challenge'], true);
+        $data = $this->request->postJson('challenge');
+        if (!is_array($data)) {
+            $page['data']['error'] = 'err_invalid_pin';
+            return;
+        }
         $credentialPublicKey = null;
 
         $clientDataJSON = !empty($data['response']['clientDataJSON']) ? base64_decode($data['response']['clientDataJSON']) : null;
@@ -156,12 +163,12 @@ class Login extends Controller
         if ($this->session['do2fa'] == 'totp' || $this->session['do2fa'] == 'webauthn') {
             $user = Member::getUserInfo($this->session['temp']['uuid']);
             $otp = TOTP::createFromSecret($user['totp_secret']);
-            $ok = $otp->verify($_POST['pin']);
+            $ok = $otp->verify($this->request->postString('pin'));
 
             if (!$ok)
                 $page['data']['error'] = 'err_invalid_pin';
         } elseif ($this->session['do2fa'] == 'email') {
-            if (!hash_equals((string) ($this->session['pin'] ?? ''), (string) ($_POST['pin'] ?? '')))
+            if (!hash_equals((string) ($this->session['pin'] ?? ''), $this->request->postString('pin')))
                 $page['data']['error'] = 'err_invalid_pin';
         }
     }
@@ -174,7 +181,7 @@ class Login extends Controller
         $this->session['admin'] = $this->session['temp']['admin'];
         unset($this->session['temp']);
 
-        if (isset($_POST['autologin']) || $this->session['szczecin'] === true) {
+        if ($this->request->hasPost('autologin') || $this->session['szczecin'] === true) {
             setcookie(
                 'szczecin',
                 Member::saveCookies($this->session['uuid'], 'szczecin', 31536000),
@@ -182,7 +189,7 @@ class Login extends Controller
             );
             unset($this->session['szczecin']);
         }
-        if (isset($_POST['trust']) || (json_decode($_POST['challenge']) !== null && $this->session['do2fa'] == 'webauthn')) {
+        if ($this->request->hasPost('trust') || ($this->request->postJson('challenge') !== null && $this->session['do2fa'] == 'webauthn')) {
             setcookie(
                 'podgorica',
                 Member::saveCookies($this->session['uuid'], 'podgorica', 34560000),
@@ -192,7 +199,6 @@ class Login extends Controller
         
         // 로그인 성공
         $_SESSION = $this->session;
-        Header('Location: '.($_GET['redirect'] ?? '/'));
-        exit;
+        Response::redirect($this->request->queryString('redirect', '/'));
     }
 }

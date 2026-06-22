@@ -1,6 +1,7 @@
 {
 	"name": "pressdo/pressdo-wiki",
 	"description": "Fast and light PHP wiki engine.",
+	"license": "proprietary",
 	"autoload": {
 		"psr-4": {
 			"PressDo\\App\\": "App/"
@@ -12,9 +13,14 @@
 			"php tests/SecurityTest.php",
 			"php tests/RouteControllerResolverTest.php",
 			"php tests/CspTest.php"
+		],
+		"check": [
+			"@lint",
+			"@test"
 		]
 	},
 	"require": {
+		"php": ">=8.4.1",
 		"hyungju/readable-url": "^1.2",
 		"latte/latte": "^3.0.20",
 		"geoip2/geoip2": "~2.0",

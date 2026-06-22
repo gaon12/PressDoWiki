@@ -47,7 +47,7 @@ class Config
     {
         self::init();
         $res = static::$Configs[$key];
-        if (!empty($implodeDelimiter) && is_countable($key))
+        if (!empty($implodeDelimiter) && is_countable($res))
             $res = implode($implodeDelimiter, $res);
         return $res;
     }

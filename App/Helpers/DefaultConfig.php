@@ -31,7 +31,6 @@ class DefaultConfig
     public static function update(\PDO $instance): void
     {
         $d = $instance->query("SELECT `key`, `value` FROM config");
-        var_dump($d);
         static::$DefConfig = array_merge(static::$DefConfig, $d->fetchAll(\PDO::FETCH_GROUP | \PDO::FETCH_COLUMN));
     }
 

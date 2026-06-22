@@ -33,6 +33,76 @@
  ### 설치 과정
  테스트 위키에 추후 업로드 예정입니다.
 
+## Installation and Local Development
+
+### Requirements
+
+- PHP 8.4.1 or newer
+- Composer 2
+- PHP extensions required by Composer dependencies and runtime features, including PDO and the driver for your database
+- MariaDB/MySQL or SQLite
+- A web server that uses `public/` as the document root
+- Optional: MaxMind GeoIP2 city database, S3-compatible object storage, SMTP, and S/MIME certificate files
+
+The current lock file includes dependencies that require PHP 8.4.1 or newer. If `composer install` fails locally, check `php -v` first.
+
+### Configuration
+
+Create runtime config files from the templates:
+
+```sh
+cp templates/config.json config/config.json
+cp templates/settings.json config/settings.json
+cp templates/namespace.json config/namespace.json
+```
+
+Edit `config/config.json` before starting the app. At minimum, set the database keys, `wiki.domain`, `wiki.front_page`, `wiki.timezone`, and storage settings. For local file uploads, use the local storage configuration supported by the application; for S3, fill the `storage.*` keys.
+
+### Database Setup
+
+For MariaDB/MySQL:
+
+```sh
+mysql -u <user> -p <database> < templates/database_scheme.sql
+```
+
+For SQLite:
+
+```sh
+sqlite3 path/to/wiki.sqlite < templates/database_scheme.sqlite.sql
+```
+
+Then set `database.type` and `database.name` in `config/config.json`. For SQLite, `database.name` should be the SQLite file path.
+
+### Install Dependencies
+
+```sh
+composer install
+```
+
+If the local PHP installation does not have zip support, install the PHP zip extension or an unzip/7z command line tool so Composer can extract packages.
+
+### Run Locally
+
+Point your web server document root at `public/`. An nginx example is available at `templates/server.nginx`.
+
+For a quick PHP built-in server during development:
+
+```sh
+php -S 127.0.0.1:8080 -t public
+```
+
+### Development Checks
+
+Run the same checks used by CI:
+
+```sh
+composer validate --strict
+composer check
+```
+
+`composer check` runs syntax linting and the current lightweight PHP test suite.
+
  ### 지원 스킨
  - ~~senkawa~~ (저작권 문제로 배포하지 않습니다.)
  - liberty (예정)

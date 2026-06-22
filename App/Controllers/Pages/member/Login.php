@@ -102,12 +102,11 @@ class Login extends Controller
 
             $body = sprintf($content, Config::get('wiki.site_name'), $this->session['pin'], $this->session['ip']);
 
-            if (empty($this->session['pin']))
-                $send = self::sendMail(
-                    $userdata['email'] ?? $this->session['temp']['email'], 
-                    sprintf($lang['new_login_title'], Config::get('wiki.site_name')),
-                    $body
-                );
+            $send = self::sendMail(
+                $userdata['email'] ?? $this->session['temp']['email'], 
+                sprintf($lang['new_login_title'], Config::get('wiki.site_name')),
+                $body
+            );
             
             if(!$send)
                 $data['error'] = 'err_mail_not_send';

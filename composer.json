@@ -6,6 +6,10 @@
 			"PressDo\\App\\": "App/"
 		}
 	},
+	"scripts": {
+		"lint": "php tests/lint.php",
+		"test": "php tests/SecurityTest.php"
+	},
 	"require": {
 		"hyungju/readable-url": "^1.2",
 		"latte/latte": "^3.0.20",

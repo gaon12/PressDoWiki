@@ -15,7 +15,7 @@ class Controller
     public object $uri_data;
 
     public array $error;
-    public array $session, $api_config, $array, $dataset;
+    public array $session, $api_config = [], $array, $dataset;
     public $page, $alert;
 
     public function __construct()
@@ -239,7 +239,10 @@ class Controller
             $content = $matches[0];
         }
 
-        if ($_POST['token'] !== $page->session[$tokennm]) {
+        $submittedToken = $_POST['token'] ?? '';
+        $sessionToken = $page->session[$tokennm] ?? '';
+
+        if (!hash_equals((string) $sessionToken, (string) $submittedToken)) {
             // Reject: wrong anti-CSRF token
             $page->error = self::makeErrorBox('err_csrf_token');
         } elseif ($page->session['raw'] == $content) {
@@ -255,7 +258,7 @@ class Controller
 
     protected static function validateCaptcha(?string $token): bool
     {
-        if (Config::get('wiki.use_captcha'))
+        if (!Config::get('wiki.use_captcha'))
             return true;
 
         if (empty($token))
@@ -390,7 +393,7 @@ class Controller
         $cl = strlen($c);
         $s = '';
         for ($i=0; $i<$len; $i++) 
-            $s .= $c[rand(0, $cl-1)];
+            $s .= $c[random_int(0, $cl-1)];
         
         return $s;
     }

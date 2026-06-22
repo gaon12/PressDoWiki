@@ -30,7 +30,7 @@ class Signup extends Controller
 
             $weh = Config::get('member.whitelist_email_host');
             if (is_string($weh) && $weh == $host || is_array($weh) && in_array($host, $weh)) {
-                if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name']])) {
+                if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
                     $page['data']['error'] = 'captcha_failed';
                     return $page;
                 }

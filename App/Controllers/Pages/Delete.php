@@ -59,7 +59,7 @@ class Delete extends Controller
             // formdata exists
             if ($namespace == Namespaces::user()) {
                 $this->error = self::makeErrorBox('disable_user_document');
-            } elseif (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name']])) {
+            } elseif (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
                 $this->error = self::makeErrorBox('captcha_failed');
             } else {
                 // Approve Delete

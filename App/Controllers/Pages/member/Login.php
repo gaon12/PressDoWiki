@@ -44,7 +44,7 @@ class Login extends Controller
             }
         } elseif (isset($_POST['username']) && isset($_POST['password'])) {
             // 1차 로그인
-            if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name']])) {
+            if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
                 $page['data']['error'] = 'captcha_failed';
                 return $page;
             }
@@ -95,7 +95,7 @@ class Login extends Controller
             $resp = $webauthn->getGetArgs($idset);
             $this->session['challenge'] = $webauthn->getChallenge();
         } elseif ($this->session['do2fa'] == 'email') {
-            $this->session['pin'] = str_pad(rand(0, 999999), 6, 0, STR_PAD_LEFT);
+            $this->session['pin'] = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $lang = Languages::get('mail');
             $content = $lang['greeting'].$lang['new_login'].$lang['request_ip'];
             $data['otp_email'] = $userdata['email'] ?? $this->session['temp']['email'];
@@ -162,7 +162,7 @@ class Login extends Controller
             if (!$ok)
                 $page['data']['error'] = 'err_invalid_pin';
         } elseif ($this->session['do2fa'] == 'email') {
-            if ($this->session['pin'] !== $_POST['pin'])
+            if (!hash_equals((string) ($this->session['pin'] ?? ''), (string) ($_POST['pin'] ?? '')))
                 $page['data']['error'] = 'err_invalid_pin';
         }
     }

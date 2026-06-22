@@ -52,11 +52,14 @@ class Move extends Controller
             'customData' => []
         ];
 
-        if ($formReceived && $this->session['movetoken'] !== $_POST['token']) {
+        $submittedToken = $_POST['token'] ?? '';
+        $sessionToken = $this->session['movetoken'] ?? '';
+
+        if ($formReceived && !hash_equals((string) $sessionToken, (string) $submittedToken)) {
             $this->error = self::makeErrorBox('err_csrf_token');
-        } elseif ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name']])) {
+        } elseif ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
             $this->error = self::makeErrorBox('captcha_failed');
-        } elseif ($formReceived && $this->session['movetoken'] == $_POST['token'] && !empty($_POST['new_title'])) {
+        } elseif ($formReceived && hash_equals((string) $sessionToken, (string) $submittedToken) && !empty($_POST['new_title'])) {
             // 이동 목적지 ACL 체크
             [$tons, $totitle] = self::parseTitle($_POST['new_title']);
             $ACL2 = new WikiACL($tons, $totitle, $uuid, $this->session, $error);

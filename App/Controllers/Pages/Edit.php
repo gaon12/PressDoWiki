@@ -43,7 +43,7 @@ class Edit extends Controller
         if ($formReceived && ($namespace == Namespaces::file() || $namespace == Namespaces::user()))
             $this->error = self::makeErrorBox('invalid_namespace');
 
-        if ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name']]))
+        if ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null))
             $this->error = self::makeErrorBox('captcha_failed');
 
         // Edit Submission

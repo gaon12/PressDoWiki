@@ -27,7 +27,7 @@ class NewEditRequest extends Controller
         if ($error['code'] == 'permission_edit_request')
             $this->error = $error;
 
-        if ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name']]))
+        if ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null))
             $this->error = self::makeErrorBox('captcha_failed');
         
         if (!$uuid)

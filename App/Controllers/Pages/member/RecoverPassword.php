@@ -24,7 +24,7 @@ class RecoverPassword extends Controller
         ];
 
         if (isset($_POST['email']) && empty($_POST['username'])) {
-            if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name']])) {
+            if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
                 $page['data']['error'] = 'captcha_failed';
                 return $page;
             }

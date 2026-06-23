@@ -16,6 +16,9 @@ final class Response
         exit;
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
     public static function json(array $data, int $status = 200): never
     {
         http_response_code($status);

@@ -9,6 +9,7 @@
 	},
 	"scripts": {
 		"lint": "php tests/lint.php",
+		"phpstan": "phpstan analyse --memory-limit=512M",
 		"test": [
 			"php tests/SecurityTest.php",
 			"php tests/RouteControllerResolverTest.php",
@@ -22,6 +23,7 @@
 		],
 		"check": [
 			"@lint",
+			"@phpstan",
 			"@test"
 		]
 	},
@@ -36,5 +38,8 @@
 		"aws/aws-sdk-php": "^3.339",
 		"meyfa/php-svg": "^0.16.0",
 		"symfony/mailer": "^7.2"
+	},
+	"require-dev": {
+		"phpstan/phpstan": "^2.2"
 	}
 }

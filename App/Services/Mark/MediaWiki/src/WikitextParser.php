@@ -106,6 +106,12 @@ class WikitextParser {
 	 *
 	 * @param string $text The text to parse
 	 */
+	public function __construct($text = '', $params = array()) {
+		if ($text !== '') {
+			$this -> WikitextParser($text, $params);
+		}
+	}
+
 	public function WikitextParser($text, $params = array()) {
 		$this -> params = $params;
 		$this -> preprocessed = $this -> preprocess_text($text);
@@ -115,8 +121,7 @@ class WikitextParser {
 
 		$newtext = "";
 		foreach($sections as $section) {
-			/* Newlines at the start/end have special meaning (compare to how this is called from parseLineBlock) */
-			$result = $this -> parseInline("\n".$section, 'p');
+			$result = $this -> parseInline($section, 'p');
 			$newtext .= $result['parsed'];
 		}
 
@@ -269,6 +274,16 @@ class WikitextParser {
 		$curKey = '';
 
 		$len = iconv_strlen($text);
+		if($token == 'p' && $len > 0) {
+			foreach(self::$lineBlock as $key => $block) {
+				foreach($block -> startChar as $char) {
+					if($char == iconv_substr($text, 0, iconv_strlen($char))) {
+						return $this -> parseLineBlock($text, $key);
+					}
+				}
+			}
+		}
+
 		for($i = 0; $i < $len; $i++) {
 			/* Looping through each character */
 			$hit = false; // State so that the last part knows whether to simply append this as an unmatched character
@@ -735,6 +750,10 @@ class ParserInlineElement {
 	public $argSep, $argNameSep;
 	public $hasArgs;
 
+	function __construct($startTag, $endTag, $argSep = '', $argNameSep = '', $argLimit = 0) {
+		$this -> ParserInlineElement($startTag, $endTag, $argSep, $argNameSep, $argLimit);
+	}
+
 	function ParserInlineElement($startTag, $endTag, $argSep = '', $argNameSep = '', $argLimit = 0) {
 		$this -> startTag = $startTag;
 		$this -> endTag = $endTag;
@@ -751,6 +770,10 @@ class ParserLineBlockElement {
 	public $limit;		/* Max depth of the element */
 	public $nestTags;	/* True if the tags for this element need to made hierachical for nesting */
 
+	function __construct($startChar, $endChar, $limit = 0, $nestTags = true) {
+		$this -> ParserLineBlockElement($startChar, $endChar, $limit, $nestTags);
+	}
+
 	function ParserLineBlockElement($startChar, $endChar, $limit = 0, $nestTags = true) {
 		$this -> startChar = $startChar;
 		$this -> endChar = $endChar;
@@ -764,6 +787,10 @@ class ParserTableElement {
 	public $argsep;
 	public $limit;
 	public $inlinesep;
+
+	function __construct($lineStart, $argsep, $inlinesep, $limit) {
+		$this -> ParserTableElement($lineStart, $argsep, $inlinesep, $limit);
+	}
 
 	function ParserTableElement($lineStart, $argsep, $inlinesep, $limit) {
 		$this -> lineStart = $lineStart;

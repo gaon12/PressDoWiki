@@ -11,7 +11,7 @@
 - 나무마크는 기본적으로 제공되지 않으며, 직접 설치하셔야 합니다.
 
  ### 개발 환경
- - PHP 8.2
+ - PHP 8.3
  - MariaDB
 
  ### 요구 사항
@@ -37,14 +37,14 @@
 
 ### Requirements
 
-- PHP 8.4.1 or newer
+- PHP 8.3 or newer
 - Composer 2
 - PHP extensions required by Composer dependencies and runtime features, including PDO and the driver for your database
 - MariaDB/MySQL, SQLite, or PostgreSQL
 - A web server that uses `public/` as the document root
 - Optional: MaxMind GeoIP2 city database, S3-compatible object storage, SMTP, and S/MIME certificate files
 
-The current lock file includes dependencies that require PHP 8.4.1 or newer. If `composer install` fails locally, check `php -v` first.
+The current lock file is generated for PHP 8.3 or newer. If `composer install` fails locally, check `php -v` first.
 
 ### Configuration
 

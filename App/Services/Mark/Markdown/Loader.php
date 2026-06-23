@@ -1,7 +1,14 @@
 <?php
-function loadMarkUp($content, array $options){
-    require_once 'Parsedown.php';
-    $Parsedown = new Parsedown();
-    
-    return ['html' => $Parsedown->text($content), 'categories' => []];
+namespace PressDo\App\Services\Mark\Markdown;
+
+require_once __DIR__.'/Parsedown.php';
+
+class Loader
+{
+    public static function loadMarkUp(string $content, array $options): array
+    {
+        $parsedown = new \Parsedown();
+
+        return ['html' => $parsedown->text($content), 'categories' => []];
+    }
 }

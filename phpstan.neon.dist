@@ -1,0 +1,8 @@
+parameters:
+    level: max
+    paths:
+        - App/Core/Request.php
+        - App/Core/Response.php
+        - App/Helpers/Csp.php
+        - App/Helpers/RouteControllerResolver.php
+        - App/Helpers/SqlDialect.php

@@ -64,8 +64,10 @@ final class RouteControllerResolver
 
     public static function resolve(object $uriData): ?string
     {
-        $page = $uriData->page ?? '';
-        $menu = $uriData->menu ?? '';
+        $rawPage = $uriData->page ?? '';
+        $rawMenu = $uriData->menu ?? '';
+        $page = is_string($rawPage) ? $rawPage : '';
+        $menu = is_string($rawMenu) ? $rawMenu : '';
 
         if (isset(self::GROUP_CONTROLLERS[$page])) {
             return self::fqcn(self::GROUP_CONTROLLERS[$page][$menu] ?? null);

@@ -39,7 +39,7 @@ class SqlDialect
     public static function activeUntil(?string $column = null): string
     {
         $column ??= self::quoteIdentifier('until');
-        $column = self::normalizeIdentifier($column);
+        $column = self::normalizeIdentifiers($column);
 
         return "($column >= ".time()." OR $column = 0)";
     }
@@ -78,12 +78,35 @@ class SqlDialect
         return '`'.str_replace('`', '``', $identifier).'`';
     }
 
-    private static function normalizeIdentifier(string $identifier): string
+    public static function normalizeIdentifiers(string $sql): string
     {
         if (!self::isPostgresql()) {
-            return $identifier;
+            return $sql;
         }
 
-        return preg_replace('/`([^`]+)`/', '"$1"', $identifier) ?? $identifier;
+        return preg_replace('/`([^`]+)`/', '"$1"', $sql) ?? $sql;
+    }
+
+    public static function castText(string $expression): string
+    {
+        return self::isPostgresql() ? 'CAST('.$expression.' AS text)' : 'CAST('.$expression.' AS TEXT)';
+    }
+
+    public static function binaryHex(string $expression): string
+    {
+        if (self::isPostgresql()) {
+            return 'encode('.$expression.", 'hex')";
+        }
+
+        return 'HEX('.$expression.')';
+    }
+
+    public static function blockHistoryTextCondition(): string
+    {
+        if (self::isMysql()) {
+            return "((INET_NTOA(CONV(HEX(b.`target_ip`), 16, 10)) LIKE ? OR INET6_NTOA(b.`target_ip`) LIKE ?) AND b.`mask` LIKE ? OR b.`comment` LIKE ? OR b.`id` LIKE ?)";
+        }
+
+        return '(LOWER('.self::binaryHex('b.`target_ip`').') LIKE ? AND '.self::castText('b.`mask`').' LIKE ? OR b.`comment` LIKE ? OR '.self::castText('b.`id`').' LIKE ?)';
     }
 }

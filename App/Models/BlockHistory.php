@@ -21,42 +21,28 @@ class BlockHistory extends \PressDo\App\Core\Model
         }
 
         try{
+            $columns = 'b.id,b.executor_m,b.executor_i,b.target_ip,b.mask,b.target_member,b.target_aclgroup,b.comment,b.`datetime`,b.until,b.`action`,b.granted';
             if (!empty($query) && $type == 'author') {
-                $a = $db->prepare("SELECT b.id,b.executor_m,b.executor_i,b.target_ip,b.mask,b.target_member,b.target_aclgroup,b.comment,b.`datetime`,b.until,b.`action`,b.granted
-                FROM `BlockHistory` b JOIN member ON b.executor_m = member.uuid WHERE member.username=? AND $sqlstr ORDER BY b.id ASC LIMIT 100");
+                $a = $db->prepare(SqlDialect::normalizeIdentifiers("SELECT $columns
+                FROM `BlockHistory` b JOIN member ON b.executor_m = member.uuid WHERE member.username=? AND $sqlstr ORDER BY b.id ASC LIMIT 100"));
                 $a->execute(array_merge([trim($query)], $rangeParams));
             } elseif (!empty($query) && $type == 'text') {
-                if (SqlDialect::isSqlite()) {
-                    $sql = "SELECT b.id,b.executor_m,b.executor_i,b.target_ip,b.mask,b.target_member,b.target_aclgroup,b.comment,b.`datetime`,b.until,b.`action`,b.granted
-                    FROM `BlockHistory` b LEFT JOIN member ON member.uuid = b.target_member LEFT JOIN aclgroups ON aclgroups.name = b.target_aclgroup
-                    WHERE (member.username LIKE ? OR aclgroups.name LIKE ? OR b.comment LIKE ? OR b.id LIKE ?) AND $sqlstr ORDER BY id ASC LIMIT 100";
-                    $a = $db->prepare($sql);
-                    $q = '%'.$query.'%';
-                    $a->execute(array_merge([$q, $q, $q, $q], $rangeParams));
-                } else {
-                    $sql = "SELECT b.id,b.executor_m,b.executor_i,b.target_ip,b.mask,b.target_member,b.target_aclgroup,b.comment,b.`datetime`,b.until,b.`action`,b.granted
-                FROM `BlockHistory` b JOIN member ON member.uuid = b.target_member AND member.username LIKE ?
-                WHERE $sqlstr
-                UNION SELECT b.id,b.executor_m,b.executor_i,b.target_ip,b.mask,b.target_member,b.target_aclgroup,b.comment,b.`datetime`,b.until,b.`action`,b.granted
-                FROM `BlockHistory` b JOIN aclgroups ON aclgroups.name = b.target_aclgroup AND aclgroups.name LIKE ?
-                WHERE $sqlstr
-                UNION SELECT b.id,b.executor_m,b.executor_i,b.target_ip,b.mask,b.target_member,b.target_aclgroup,b.comment,b.`datetime`,b.until,b.`action`,b.granted
-                FROM `BlockHistory` b WHERE ((INET_NTOA(CONV(HEX(`target_ip`), 16, 10)) LIKE ? OR INET6_NTOA(`target_ip`) LIKE ?) AND `mask` LIKE ? OR `comment` LIKE ? OR `id` LIKE ? ) AND $sqlstr ORDER BY id ASC LIMIT 100";
-                    $a = $db->prepare($sql);
-                
-                    $ipv4string = explode('/', $query);
-                    if (count($ipv4string) > 1)
-                        $m = '%'.$ipv4string[1].'%';
-                    else
-                        $m = '%'.$ipv4string[0].'%';
+                $sql = "SELECT $columns
+                FROM `BlockHistory` b LEFT JOIN member ON member.uuid = b.target_member LEFT JOIN aclgroups ON aclgroups.name = b.target_aclgroup
+                WHERE (member.username LIKE ? OR aclgroups.name LIKE ? OR ".SqlDialect::blockHistoryTextCondition().") AND $sqlstr ORDER BY b.id ASC LIMIT 100";
+                $a = $db->prepare(SqlDialect::normalizeIdentifiers($sql));
 
-                    $ipv6string = '%'.str_replace(':', '', $ipv4string[0]).'%';
-
-                    $q = '%'.$query.'%';
-                    $a->execute(array_merge([$q], $rangeParams, [$q], $rangeParams, ['%'.$ipv4string[0].'%',$ipv6string,$m,$q,$q], $rangeParams));
-                }
+                $ip = explode('/', $query)[0];
+                $mask = str_contains($query, '/') ? substr(strrchr($query, '/'), 1) : $query;
+                $packedIp = @inet_pton($ip);
+                $ipHex = $packedIp === false ? str_replace(':', '', $ip) : bin2hex($packedIp);
+                $q = '%'.$query.'%';
+                $textParams = SqlDialect::isMysql()
+                    ? ['%'.$ip.'%', '%'.str_replace(':', '', $ip).'%', '%'.$mask.'%', $q, $q]
+                    : ['%'.strtolower($ipHex).'%', '%'.$mask.'%', $q, $q];
+                $a->execute(array_merge([$q, $q], $textParams, $rangeParams));
             } else {
-                $a = $db->prepare("SELECT id,executor_m,executor_i,target_ip,mask,target_member,target_aclgroup,comment,`datetime`,until,`action`,granted FROM `BlockHistory` WHERE $sqlstr ORDER BY id ASC LIMIT 100");
+                $a = $db->prepare(SqlDialect::normalizeIdentifiers("SELECT id,executor_m,executor_i,target_ip,mask,target_member,target_aclgroup,comment,`datetime`,until,`action`,granted FROM `BlockHistory` WHERE $sqlstr ORDER BY id ASC LIMIT 100"));
                 $a->execute($rangeParams);
             }
 

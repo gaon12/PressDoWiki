@@ -73,6 +73,7 @@ class Config
         $db = self::db();
         $d = $db->prepare("INSERT INTO config (`key`, `value`) VALUES (?, ?)");
         $d->execute([$key, $name]);
+        static::$Configs = [];
     }
     
     public static function delete(string $key, string $name): void
@@ -80,14 +81,35 @@ class Config
         $db = self::db();
         $d = $db->prepare("DELETE FROM config WHERE `key`=? AND `value`=?");
         $d->execute([$key, $name]);
+        static::$Configs = [];
     }
     
-    public static function setBulk(array $data)
+    public static function setBulk(array $data): void
     {
+        if (count($data) % 2 !== 0) {
+            throw new \InvalidArgumentException('Config bulk data must contain key/value pairs.');
+        }
+
         $db = self::db();
-        $str = implode(', ', array_fill(0, count($data) / 2, '(?, ?)'));
-        $db->query("DELETE FROM config");
-        $d = $db->prepare("INSERT INTO config (`key`, `value`) VALUES ".$str);
-        $d->execute($data);
+        $str = implode(', ', array_fill(0, (int) (count($data) / 2), '(?, ?)'));
+
+        try {
+            $db->beginTransaction();
+            $db->query("DELETE FROM config");
+
+            if (!empty($data)) {
+                $d = $db->prepare("INSERT INTO config (`key`, `value`) VALUES ".$str);
+                $d->execute($data);
+            }
+
+            $db->commit();
+            static::$Configs = [];
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+
+            throw $e;
+        }
     }
 }

@@ -16,6 +16,7 @@
 			"php tests/CspTest.php",
 			"php tests/SqlDialectTest.php",
 			"php tests/ConfigTest.php",
+			"php tests/ViewSkinTest.php",
 			"php tests/MarkHandlerTest.php",
 			"php tests/MediaWikiInterwikiTest.php",
 			"php tests/RequestTest.php",

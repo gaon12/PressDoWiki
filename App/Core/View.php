@@ -83,7 +83,7 @@ class View
             $file = '../App/Views/layouts/notfound.latte';
 
         $this->params['innerLayout'] = $this->latte->renderToString($file, $this->params);
-        $this->params['body'] = $this->latte->renderToString($this->skinLayoutPath($this->skin->name), $this->params);
+        $this->params['body'] = $this->renderSkinLayout($this->skin->name);
         
         return $this->latte->renderToString('../App/Views/frame.latte', $this->params);
     }
@@ -103,7 +103,7 @@ class View
 
     private function skinExists(string $skinName): bool
     {
-        return is_file($this->skinConfigPath($skinName)) && is_file($this->skinLayoutPath($skinName));
+        return is_file($this->skinConfigPath($skinName)) && $this->findSkinLayoutPath($skinName) !== null;
     }
 
     private function loadSkinConfig(string $skinName): array
@@ -123,8 +123,49 @@ class View
         return 'skins/'.$skinName.'/config.json';
     }
 
+    private function renderSkinLayout(string $skinName): string
+    {
+        $path = $this->skinLayoutPath($skinName);
+        if (str_ends_with($path, '.php')) {
+            return $this->renderPhpTemplate($path, $this->params);
+        }
+
+        return $this->latte->renderToString($path, $this->params);
+    }
+
     private function skinLayoutPath(string $skinName): string
     {
-        return 'skins/'.$skinName.'/layout.latte';
+        $path = $this->findSkinLayoutPath($skinName);
+        if ($path === null) {
+            throw new RuntimeException('Skin layout not found.');
+        }
+
+        return $path;
+    }
+
+    private function findSkinLayoutPath(string $skinName): ?string
+    {
+        foreach (['layout.php', 'layout.latte'] as $filename) {
+            $path = 'skins/'.$skinName.'/'.$filename;
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    private function renderPhpTemplate(string $path, array $params): string
+    {
+        ob_start();
+        try {
+            extract($params, EXTR_SKIP);
+            require $path;
+
+            return (string) ob_get_clean();
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            throw $e;
+        }
     }
 }

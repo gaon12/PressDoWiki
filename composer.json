@@ -15,6 +15,7 @@
 			"php tests/CspTest.php",
 			"php tests/SqlDialectTest.php",
 			"php tests/ConfigTest.php",
+			"php tests/MarkHandlerTest.php",
 			"php tests/MediaWikiInterwikiTest.php",
 			"php tests/RequestTest.php",
 			"php tests/SchemaCompatibilityTest.php"
@@ -25,7 +26,7 @@
 		]
 	},
 	"require": {
-		"php": ">=8.4.1",
+		"php": ">=8.3",
 		"hyungju/readable-url": "^1.2",
 		"latte/latte": "^3.0.20",
 		"geoip2/geoip2": "~2.0",

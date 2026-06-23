@@ -1,3 +1,3 @@
 <main class="pressdo-skin">
-    {$innerLayout|noescape}
+    <?= $innerLayout ?? '' ?>
 </main>

@@ -92,7 +92,7 @@ pinPos = 1
 pin = ''
 before = 0
 Ctrl = Alt = false
-NowDisplayPopper = ''
+NowDisplayPopover = ''
 let searchText = ''
 Lock = true
 document.onkeyup = (e) => {
@@ -627,9 +627,9 @@ e(document, 'click', e => {
     var x = q('.hidden-trigger')
     var y = g('content-nav-menu')
 
-    if (NowDisplayPopper.length > 0) {
-        NowDisplayPopper = e.target.getAttribute('aria-describedby')
-        qa('div.context-tooltip:not(#'+NowDisplayPopper+')').forEach(r => {
+    if (NowDisplayPopover.length > 0) {
+        NowDisplayPopover = e.target.getAttribute('aria-describedby')
+        qa('div.context-tooltip:not(#'+NowDisplayPopover+')').forEach(r => {
             SH(r, 'none');
         })
     }
@@ -669,62 +669,69 @@ if(g('logInput')){
 
 qa('div.context-menu a').forEach(r => {
     var cls = r.getAttribute('aria-describedby')
-    var tooltip = q('div#'+cls)
+    var tooltip = g(cls)
     e(r, 'click', e => {
         e.preventDefault();
-        NowDisplayPopper = cls;
-        var pop = Popper.createPopper(r, tooltip, {
-            placement: 'bottom-start',
-            modifiers: [
-                {
-                  name: 'flip',
-                  options: {
-                    fallbackPlacements: ['top-start'],
-                  },
-                },
-              ],
-            strategy: 'absolute'
-        });
+        NowDisplayPopover = cls;
+        var rect = r.getBoundingClientRect()
+        var tooltipHeight = tooltip.offsetHeight || 0
+        var top = window.scrollY + rect.bottom
+        if (rect.bottom + tooltipHeight > window.innerHeight && rect.top > tooltipHeight)
+            top = window.scrollY + rect.top - tooltipHeight
+
+        tooltip.style.position = 'absolute'
+        tooltip.style.top = top + 'px'
+        tooltip.style.left = (window.scrollX + rect.left) + 'px'
         SH(tooltip, 'block');
     })
 })
 
 softSearch = () => {
+    var searchInput = g('searchInput')
+    var autocompleteList = q('div.v-autocomplete-list')
+    if (!searchInput || !autocompleteList)
+        return;
     // 이벤트 중복 실행 방지
-    if (searchText == $('#searchInput').val())
+    if (searchText == searchInput.value)
         return;
 
-    searchText = $('#searchInput').val();
+    searchText = searchInput.value;
     if (searchText.length < 1){
-        $('div.v-autocomplete-list').empty()
+        autocompleteList.replaceChildren()
         return;
     }
     const xhr = new XMLHttpRequest()
     const data = new FormData()
 
-    xhr.open('GET', window.location.protocol + '//' + window.location.host + '/api/search?q=' + searchText)
+    xhr.open('GET', window.location.protocol + '//' + window.location.host + '/api/search?q=' + encodeURIComponent(searchText))
     xhr.onreadystatechange = () => {
         if(xhr.readyState === xhr.DONE && xhr.status === 200) {
             var searchData = JSON.parse(xhr.responseText);
-            $('div.v-autocomplete-list').empty()
+            autocompleteList.replaceChildren()
             searchData.forEach(r => {
                 var docnm = (r.forceShowNamespace === false ? '' : r.namespace + ':') + r.title;
-                var $item = $('<div class="v-autocomplete-list-item"><div>'+ docnm +'</div></div>')
-                $('div.v-autocomplete-list').append($item);
+                var item = ce('div')
+                var itemText = ce('div')
+                item.className = 'v-autocomplete-list-item'
+                itemText.innerText = docnm
+                item.appendChild(itemText)
+                autocompleteList.appendChild(item)
             })
 
-            $('div.v-autocomplete-list-item')
-                .on('mouseenter', e => {
-                    e.target.classList.add('v-autocomplete-item-active')
+            qa('div.v-autocomplete-list-item').forEach(item => {
+                e(item, 'mouseenter', e => {
+                    e.currentTarget.classList.add('v-autocomplete-item-active')
                 })
-                .on('mouseleave', e => {
-                    e.target.classList.remove('v-autocomplete-item-active')
+                e(item, 'mouseleave', e => {
+                    e.currentTarget.classList.remove('v-autocomplete-item-active')
                 })
-                .on('click', e => {
-                    location.href = '/w/' + e.target.innerText
+                e(item, 'click', e => {
+                    location.href = '/w/' + e.currentTarget.innerText
                 })
+            })
         }
     }
     xhr.send(data)
 }
-$('#searchInput').on('keydown', softSearch)
+if (g('searchInput'))
+    e(g('searchInput'), 'keydown', softSearch)

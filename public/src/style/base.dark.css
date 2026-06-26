@@ -1,4 +1,10 @@
 .pressdo-dark-mode {
+    color: #e0e0e0;
+
+    a {
+        color: #6ea8fe;
+    }
+
     [dropdown-toggle], #list-dropdown-menu, [dropdown-selected] {background: #27292d;color: #ddd;}
     .dropdown-open, .dropdown-toggle-clear {fill: #ddd;}
 

@@ -3,6 +3,25 @@
 @import url(ionicons.css);
 @base skin;
 @charset "UTF-8";
+
+/* Body base */
+body {
+    color: #333;
+    font-family: "Nanum Gothic", "Malgun Gothic", sans-serif;
+    font-size: 1rem;
+    line-height: 1.65;
+    word-break: keep-all;
+}
+
+/* Link base */
+a {
+    color: #0645ad;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
 @keyframes blinkWhite-unlogined {
     0% {color: #000}
     to {color: red}

@@ -15,6 +15,15 @@ function assertViewSkinValue(mixed $expected, mixed $actual, string $message): v
     }
 }
 
+function assertViewSkinContains(string $needle, string $haystack, string $message): void
+{
+    if (!str_contains($haystack, $needle)) {
+        fwrite(STDERR, $message.PHP_EOL);
+        fwrite(STDERR, 'Expected to find: '.var_export($needle, true).PHP_EOL);
+        exit(1);
+    }
+}
+
 $root = dirname(__DIR__);
 $previousDirectory = getcwd();
 chdir($root.'/public');
@@ -30,11 +39,19 @@ try {
         'innerLayout' => '<section>Body</section>',
     ]);
 
-    assertViewSkinValue(
-        "<main class=\"pressdo-skin\">\n    <section>Body</section></main>",
-        trim((string) $html),
+    assertViewSkinContains(
+        '<section>Body</section>',
+        (string) $html,
         'Pressdo PHP layout should render the inner layout.'
     );
+
+    foreach (['pd-wrapper', 'pd-header', 'pd-main', 'pd-footer', 'pd-content'] as $class) {
+        assertViewSkinContains(
+            $class,
+            (string) $html,
+            "Pressdo PHP layout should include element with class '{$class}'."
+        );
+    }
 } finally {
     if ($previousDirectory !== false) {
         chdir($previousDirectory);

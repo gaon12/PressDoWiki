@@ -55,28 +55,41 @@ class Edit extends Controller
                 $this->session['uuid'] = $ip;
             }
 
-            if ($this->session['baserev'] === 0)
-                $action = 'create';
+            $action = $this->session['baserev'] === 0 ? 'create' : 'modify';
             
-            if (!$uuid)
-                $uuid = Document::create($namespace, $title);
-            else {
+            if (!$uuid) {
+                $uuid = Document::createWithContent(
+                    $namespace,
+                    $title,
+                    $this->content,
+                    $_POST['comment'],
+                    $member,
+                    $ip,
+                );
+            } else {
                 $this->session['baserev'] = Document::getVersion($uuid);
-                if ($action == 'create')
-                    Document::recreate($uuid);
+                if ($action === 'create') {
+                    Document::recreateWithContent(
+                        $uuid,
+                        $this->content,
+                        $_POST['comment'],
+                        $member,
+                        $ip,
+                        $this->session['baserev'],
+                    );
+                } else {
+                    Document::save(
+                        $uuid,
+                        $this->content,
+                        $_POST['comment'],
+                        $member,
+                        $ip,
+                        $this->session['baserev'],
+                        iconv_strlen($this->session['raw']),
+                        'modify',
+                    );
+                }
             }
-            
-            Document::save(
-                $uuid,
-                $this->content,
-                $_POST['comment'],
-                $member,
-                $ip,
-                $this->session['baserev'],
-                iconv_strlen($this->session['raw']),
-                $action ?? 'modify'
-            );
-            
 
             Header('Location: /w/'.$this->uri_data->title);
             unset($this->session['edittoken'], $this->session['baserev'], $this->session['raw']);

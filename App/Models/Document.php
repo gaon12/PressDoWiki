@@ -8,6 +8,7 @@ use PressDo\App\Core\Controller;
 use PressDo\App\Models\Concerns\DocumentPageLists;
 use PressDo\App\Helpers\SqlDialect;
 use PressDo\App\Services\Document\DocumentRevision;
+use PressDo\App\Services\Document\PdoDocumentContentStore;
 use PressDo\App\Services\Document\PdoDocumentDeletionStore;
 use PressDo\App\Services\Document\PdoDocumentMoveStore;
 use PressDo\App\Services\Document\PdoDocumentRevisionStore;
@@ -38,16 +39,74 @@ class Document extends \PressDo\App\Core\Model
         return self::bin2uuid($uuid);
     }
 
-    public static function recreate(string $uuid): void
+    /** Create a visible document and its initial content revision atomically. */
+    public static function createWithContent(
+        string $namespace,
+        string $title,
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+    ): string
     {
         $db = self::db();
-        $uuid = self::uuid2bin($uuid);
+        $documentId = self::uuid2bin(self::generateUuid());
+
+        if($cont_m !== null)
+            $cont_m = self::uuid2bin($cont_m);
+        elseif($cont_i !== null)
+            $cont_i = self::uuid2bin($cont_i);
 
         try {
-            $d = $db->prepare("UPDATE `document` SET `status`='normal' WHERE uuid=?");
-            $d->execute([$uuid]);
+            (new PdoDocumentContentStore($db))->create($namespace, $title, new DocumentRevision(
+                revisionId: self::uuid2bin(self::generateUuid()),
+                documentId: $documentId,
+                content: $content,
+                comment: $comment,
+                action: 'create',
+                revision: 1,
+                lengthDelta: mb_strlen($content, 'UTF-8'),
+                contributorMemberId: $cont_m,
+                contributorIpId: $cont_i,
+            ));
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 문서 재생성 중 오류 발생');
+            throw new ErrorException($err->getMessage().': 문서와 첫 리비전 생성 중 오류 발생', previous: $err);
+        }
+
+        return self::bin2uuid($documentId);
+    }
+
+    /** Restore a deleted document and append its new content in one transaction. */
+    public static function recreateWithContent(
+        string $uuid,
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+        int $baserev,
+    ): void {
+        $db = self::db();
+        $documentId = self::uuid2bin($uuid);
+
+        if($cont_m !== null)
+            $cont_m = self::uuid2bin($cont_m);
+        elseif($cont_i !== null)
+            $cont_i = self::uuid2bin($cont_i);
+
+        try {
+            (new PdoDocumentContentStore($db))->recreate(new DocumentRevision(
+                revisionId: self::uuid2bin(self::generateUuid()),
+                documentId: $documentId,
+                content: $content,
+                comment: $comment,
+                action: 'create',
+                revision: $baserev + 1,
+                lengthDelta: mb_strlen($content, 'UTF-8'),
+                contributorMemberId: $cont_m,
+                contributorIpId: $cont_i,
+            ));
+        } catch (PDOException $err) {
+            throw new ErrorException($err->getMessage().': 삭제 문서 재생성 중 오류 발생', previous: $err);
         }
     }
 

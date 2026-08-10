@@ -20,6 +20,7 @@ if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
 
 $database = new PDO('sqlite::memory:');
 $database->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$database->exec('CREATE TABLE files (hash BLOB NOT NULL UNIQUE)');
 $database->exec('CREATE TABLE mutation (value TEXT NOT NULL)');
 $lock = new PdoObjectMutationLock($database);
 $key = new ObjectKey('aa/' . str_repeat('a', 64) . '.png');
@@ -58,6 +59,42 @@ try {
     }
 } finally {
     $database->rollBack();
+}
+
+$databasePath = sys_get_temp_dir() . '/pressdo-object-lock-' . bin2hex(random_bytes(8)) . '.sqlite';
+$firstDatabase = new PDO('sqlite:' . $databasePath);
+$secondDatabase = new PDO('sqlite:' . $databasePath);
+foreach ([$firstDatabase, $secondDatabase] as $connection) {
+    $connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $connection->exec('PRAGMA busy_timeout=0');
+}
+unset($connection);
+$firstDatabase->exec('CREATE TABLE files (hash BLOB NOT NULL UNIQUE)');
+$firstLock = new PdoObjectMutationLock($firstDatabase);
+$secondLock = new PdoObjectMutationLock($secondDatabase);
+
+try {
+    $firstLock->synchronized($key, static function () use ($secondLock, $key): void {
+        try {
+            $secondLock->synchronized($key, static fn(): null => null);
+            failObjectMutationLockTest('A second SQLite writer must not enter while the first lock is active.');
+        } catch (PDOException $error) {
+            if (!str_contains($error->getMessage(), 'database is locked')) {
+                throw $error;
+            }
+        }
+    });
+
+    $secondLock->synchronized($key, static fn(): null => null);
+} finally {
+    $firstLock = null;
+    $secondLock = null;
+    $firstDatabase = null;
+    $secondDatabase = null;
+    gc_collect_cycles();
+    if (is_file($databasePath)) {
+        unlink($databasePath);
+    }
 }
 
 echo 'Object mutation lock tests passed.' . PHP_EOL;

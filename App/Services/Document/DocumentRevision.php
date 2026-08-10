@@ -12,7 +12,7 @@ final readonly class DocumentRevision
     public function __construct(
         public string $revisionId,
         public string $documentId,
-        public string $content,
+        public ?string $content,
         public string $comment,
         public string $action,
         public int $revision,

@@ -6,6 +6,7 @@ parameters:
         - App/Services/Document
         - App/Services/File
         - App/Services/Search
+        - App/Services/Uploaders
         - App/Controllers/Pages/admin/Config.php
         - App/Controllers/Pages/api/Preview.php
         - App/Core/Request.php

@@ -127,7 +127,7 @@ try {
         new FileMetadata($duplicateId, $digest, 320, 240),
     );
     failFileDocumentStoreTest('A duplicate binary hash should be rejected.');
-} catch (PDOException) {
+} catch (PressDo\App\Services\File\DuplicateFileException) {
 }
 $duplicateDocument = $database->prepare('SELECT COUNT(*) FROM document WHERE uuid=?');
 $duplicateDocument->execute([$duplicateId]);

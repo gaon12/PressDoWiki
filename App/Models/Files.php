@@ -6,7 +6,11 @@ use \PDOException as PDOException;
 use \ErrorException as ErrorException;
 use PressDo\App\Services\Document\DocumentRevision;
 use PressDo\App\Services\File\FileMetadata;
+use PressDo\App\Services\File\FileUploadService;
+use PressDo\App\Services\File\PendingFileUpload;
 use PressDo\App\Services\File\PdoFileDocumentStore;
+use PressDo\App\Services\Uploaders\ObjectKey;
+use PressDo\App\Services\Uploaders\ObjectStorageInterface;
 
 class Files extends \PressDo\App\Core\Model
 {
@@ -23,6 +27,80 @@ class Files extends \PressDo\App\Core\Model
         int $height,
     ): string {
         $db = self::db();
+        [$documentId, $revision, $metadata] = self::newFileDocument(
+            $content,
+            $comment,
+            $cont_m,
+            $cont_i,
+            $sha256,
+            $width,
+            $height,
+        );
+
+        try {
+            (new PdoFileDocumentStore($db))->create(
+                $namespace,
+                $title,
+                $revision,
+                $metadata,
+            );
+        } catch (PDOException $err) {
+            throw new ErrorException($err->getMessage().': 파일 문서 저장 중 오류 발생', previous: $err);
+        }
+
+        return self::bin2uuid($documentId);
+    }
+
+    /** Store the binary object, then persist its page and metadata with compensation. */
+    public static function uploadDocument(
+        ObjectStorageInterface $storage,
+        string $sourcePath,
+        string $objectKey,
+        string $namespace,
+        string $title,
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+        string $sha256,
+        int $width,
+        int $height,
+    ): string {
+        $db = self::db();
+        [$documentId, $revision, $metadata] = self::newFileDocument(
+            $content,
+            $comment,
+            $cont_m,
+            $cont_i,
+            $sha256,
+            $width,
+            $height,
+        );
+
+        (new FileUploadService($storage, new PdoFileDocumentStore($db)))->upload(new PendingFileUpload(
+            namespace: $namespace,
+            title: $title,
+            sourcePath: $sourcePath,
+            objectKey: new ObjectKey($objectKey),
+            revision: $revision,
+            metadata: $metadata,
+        ));
+
+        return self::bin2uuid($documentId);
+    }
+
+    /**
+     * @return array{0: string, 1: DocumentRevision, 2: FileMetadata}
+     */
+    private static function newFileDocument(
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+        string $sha256,
+        int $width,
+        int $height,
+    ): array {
         $documentId = self::uuid2bin(self::generateUuid());
         $digest = hex2bin($sha256);
         if ($digest === false) {
@@ -34,28 +112,21 @@ class Files extends \PressDo\App\Core\Model
         elseif($cont_i !== null)
             $cont_i = self::uuid2bin($cont_i);
 
-        try {
-            (new PdoFileDocumentStore($db))->create(
-                $namespace,
-                $title,
-                new DocumentRevision(
-                    revisionId: self::uuid2bin(self::generateUuid()),
-                    documentId: $documentId,
-                    content: $content,
-                    comment: $comment,
-                    action: 'create',
-                    revision: 1,
-                    lengthDelta: mb_strlen($content, 'UTF-8'),
-                    contributorMemberId: $cont_m,
-                    contributorIpId: $cont_i,
-                ),
-                new FileMetadata($documentId, $digest, $width, $height),
-            );
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 파일 문서 저장 중 오류 발생', previous: $err);
-        }
-
-        return self::bin2uuid($documentId);
+        return [
+            $documentId,
+            new DocumentRevision(
+                revisionId: self::uuid2bin(self::generateUuid()),
+                documentId: $documentId,
+                content: $content,
+                comment: $comment,
+                action: 'create',
+                revision: 1,
+                lengthDelta: mb_strlen($content, 'UTF-8'),
+                contributorMemberId: $cont_m,
+                contributorIpId: $cont_i,
+            ),
+            new FileMetadata($documentId, $digest, $width, $height),
+        ];
     }
 
     public static function load(string $fileuuid): array
@@ -74,23 +145,4 @@ class Files extends \PressDo\App\Core\Model
         return $dataset;
     }
 
-    /**
-     * 파일 해시가 이미 존재하는지 확인
-     * @param string $hash
-     * @throws \ErrorException
-     * @return bool
-     */
-    public static function findHash(string $hash): bool
-    {
-        $db = self::db();
-        $H = hex2bin($hash);
-
-        try {
-            $g = $db->prepare("SELECT 1 FROM `files` WHERE `hash`=?");
-            $g->execute([$H]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 파일 해시 조회 중 오류 발생');
-        }
-        return $g->fetchColumn() !== false;
-    }
 }

@@ -175,7 +175,7 @@ class Controller
      * Parse namespace and title in full title.
      *
      * @param string $title     Full title of document
-     * @return array            array(Namespace, Title)
+     * @return array{0: string, 1: string} Namespace and title
      */
     public static function parseTitle(string $title): array
     {

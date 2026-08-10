@@ -124,12 +124,7 @@ final class Backlink extends \PressDo\App\Core\Model
 
     private static function target(string $fullTitle, BacklinkType $type): BacklinkTarget
     {
-        $parts = Controller::parseTitle($fullTitle);
-        $namespace = $parts[0] ?? null;
-        $title = $parts[1] ?? null;
-        if (!is_string($namespace) || !is_string($title)) {
-            throw new UnexpectedValueException('A parsed document title must contain a namespace and title.');
-        }
+        [$namespace, $title] = Controller::parseTitle($fullTitle);
 
         return new BacklinkTarget($namespace, $title, $type);
     }

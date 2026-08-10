@@ -1,40 +1,37 @@
 <?php
+
 namespace PressDo\App\Controllers\Pages;
 
-use PressDo\App\Models\{Document,Member,Files};
 use PressDo\App\Core\Controller;
-use PressDo\App\Controllers\ACL as WikiACL;
-use PressDo\App\Helpers\{Languages,Config,Namespaces,DefaultConfig};
+use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
+use PressDo\App\Models\{Document, Files, Member};
 use PressDo\App\Services\File\DuplicateFileException;
+use PressDo\App\Services\File\UploadedFile;
+use PressDo\App\Services\File\UploadedImage;
+use PressDo\App\Services\File\UploadedImageInspector;
+use PressDo\App\Services\File\UploadValidationException;
 use PressDo\App\Services\Uploaders\ObjectStorageFactory;
+use RuntimeException;
 
 class Upload extends Controller
 {
+    /** @return array<string, mixed> */
     public function makeData(): array
     {
+        $error = null;
         if (!DefaultConfig::get('wiki.file_upload')) {
             $error = 'err_file_upload_disabled';
         }
 
-        if (!empty($_POST['document']) && count($_FILES)) {
-            $fileExt = str_replace(['JPEG', 'jpeg'], 'jpg', implode('', array_slice(explode('.', $_FILES['file']['name']), -1, 1)));
-            $docExt = implode('', array_slice(explode('.', $_POST['document']), -1, 1));
-            $allowedExts = ['jpg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico'];
-            [$namespace, $title] = self::parseTitle($_POST['document']);
-            
-            // 확장자 오류
-            if (!in_array($docExt, $allowedExts) || $docExt !== strtolower($fileExt)) {
-                $error = 'err_invalid_fileext';
-            }
-
-            // 사진 아님
-            if (!str_contains($_FILES['file']['type'], 'image')) {
-                $error = 'err_invalid_file';
-            }
-
-            // 용량 제한
-            if ($_FILES['file']['error'] === 1) {
-                $error = 'err_file_toobig';
+        $submittedDocument = $_POST['document'] ?? null;
+        if (is_string($submittedDocument) && $submittedDocument !== '' && array_key_exists('file', $_FILES)) {
+            [$namespace, $title] = self::parseTitle($submittedDocument);
+            $image = null;
+            try {
+                $uploadedFile = UploadedFile::fromPhpFiles($_FILES['file']);
+                $image = (new UploadedImageInspector())->inspect($uploadedFile, $submittedDocument);
+            } catch (UploadValidationException $validationError) {
+                $error = $validationError->messageKey;
             }
 
             // 이름공간 오류
@@ -48,106 +45,116 @@ class Upload extends Controller
             }
 
             // 정상 처리
-            if (empty($error)) {
-                // change some to webp
-                if (in_array($fileExt, ['jpg', 'png', 'gif', 'webp', 'bmp'])) {
-                    $size = getimagesize($_FILES['file']['tmp_name']);
-
-                    switch ($fileExt) {
-                        case 'jpg':
-                            $img = imagecreatefromjpeg($_FILES['file']['tmp_name']);
-                            if ($size[0] > 1000)
-                                $img = imagescale($img, 1000);
-                            imagewebp($img, $_FILES['file']['tmp_name']);
-                            break;
-                        case 'png':
-                            $img = imagecreatefrompng($_FILES['file']['tmp_name']);
-                            if ($size[0] > 1000)
-                                $img = imagescale($img, 1000);
-                            imagewebp($img, $_FILES['file']['tmp_name']);
-                            break;
-                        case 'gif':
-                            $img = imagecreatefromgif($_FILES['file']['tmp_name']);
-                            if ($size[0] > 1000)
-                                $img = imagescale($img, 1000);
-                            imagegif($img, $_FILES['file']['tmp_name']);
-                            break;
-                        case 'webp':
-                            $img = imagecreatefromwebp($_FILES['file']['tmp_name']);
-                            if ($size[0] > 1000)
-                                $img = imagescale($img, 1000);
-                            imagewebp($img, $_FILES['file']['tmp_name']);
-                            break;
-                        case 'bmp':
-                            $img = imagecreatefrombmp($_FILES['file']['tmp_name']);
-                            if ($size[0] > 1000)
-                                $img = imagescale($img, 1000);
-                            imagebmp($img, $_FILES['file']['tmp_name'], true);
-                            break;
-                    }
+            if ($error === null && $image instanceof UploadedImage) {
+                $license = self::postString('license');
+                $category = self::postString('category');
+                $text = self::postString('text');
+                $imageLicense = Languages::get('image_license');
+                if (!is_string($imageLicense)) {
+                    throw new RuntimeException('The image license namespace label is not configured.');
                 }
-                $size = getimagesize($_FILES['file']['tmp_name']);
-                $hash = hash_file('sha256', $_FILES['file']['tmp_name']);
+                $content = '[include(' . Namespaces::template() . ':' . $imageLicense . '/' . $license . ")]\n"
+                    . '[[' . Namespaces::category() . ':' . Namespaces::file() . '/' . $category . "]]\n" . $text;
 
-                $content = '[include('.Namespaces::template().':'.Languages::get('image_license').'/'.$_POST['license'].")]\n"
-                    .'[['.Namespaces::category().':'.Namespaces::file().'/'.$_POST['category']."]]\n".$_POST['text'];
-                
-                $member = $this->session['member'] ? $this->session['uuid'] : null;
-                $ip = !$member ? ($this->session['uuid'] ?? Member::getIpUuid($this->session['ip'])) : null;
-                if (!$member && !$this->session['uuid']) {
+                $sessionUuid = self::sessionString($this->session, 'uuid');
+                $member = !empty($this->session['member']) ? $sessionUuid : null;
+                $ip = $member === null
+                    ? ($sessionUuid ?? Member::getIpUuid(self::sessionString($this->session, 'ip') ?? ''))
+                    : null;
+                if ($member === null && $sessionUuid === null) {
                     $this->session['uuid'] = $ip;
                 }
 
-                $comment = empty($_POST['summary']) ? sprintf(Languages::get('history', 'uploaded_file'), $_FILES['file']['name']) : $_POST['summary'];
-                $objectKey = substr($hash, 0, 2).'/'.$hash.'.'.str_replace(['jpg', 'png'], 'webp', $fileExt);
+                $summary = self::postString('summary');
+                $historyMessage = Languages::get('history', 'uploaded_file');
+                $comment = $summary !== ''
+                    ? $summary
+                    : sprintf(is_string($historyMessage) ? $historyMessage : 'Uploaded file %s', $image->file->originalName);
+                $storageType = Config::get('storage.type');
+                if (!is_string($storageType)) {
+                    throw new RuntimeException('The object storage type is not configured.');
+                }
                 try {
                     Files::uploadDocument(
-                        ObjectStorageFactory::create((string) Config::get('storage.type')),
-                        $_FILES['file']['tmp_name'],
-                        $objectKey,
+                        ObjectStorageFactory::create($storageType),
+                        $image->file->temporaryPath,
+                        $image->objectKey(),
                         $namespace,
                         $title,
                         $content,
                         $comment,
                         $member,
                         $ip,
-                        $hash,
-                        $size[0],
-                        $size[1],
+                        $image->sha256,
+                        $image->width,
+                        $image->height,
                     );
 
-                    Header('Location: /w/'.$_POST['document']);
+                    Header('Location: /w/' . $submittedDocument);
                     exit;
                 } catch (DuplicateFileException) {
-                    $this->error = self::makeErrorBox('err_duplicate_file');
+                    $this->error = self::uploadError('err_duplicate_file');
                 }
             } else {
-                $this->error = [
-                    'code' => $error,
-                    'message' => sprintf(Languages::get('msg', $error), strtolower($fileExt)) ?? '',
-                    'errbox' => true
-                ];
+                $this->error = self::uploadError($error ?? 'err_invalid_file');
             }
         }
 
         $dataset = Document::getLicensesAndCategories();
-        foreach ($dataset['License'] as $k => $l) {
-            $dataset['License'][$k] = substr($l['title'], strlen(Languages::get('image_license').'/'));
+        $imageLicense = Languages::get('image_license');
+        if (!is_string($imageLicense)) {
+            throw new RuntimeException('The image license namespace label is not configured.');
         }
-        foreach ($dataset['Category'] as $k => $l) {
-            $dataset['Category'][$k] = substr($l['title'], strlen(Namespaces::file().'/'));
+        $licenses = [];
+        foreach ($dataset['License'] as $license) {
+            $licenses[] = substr($license['title'], strlen($imageLicense . '/'));
         }
+        $categories = [];
+        foreach ($dataset['Category'] as $category) {
+            $categories[] = substr($category['title'], strlen(Namespaces::file() . '/'));
+        }
+        $pageLabels = Languages::get('page');
+        $pageTitle = is_array($pageLabels) && is_string($pageLabels['Upload'] ?? null)
+            ? $pageLabels['Upload']
+            : 'Upload';
         $page = [
             'view_name' => 'Upload',
-            'title' => Languages::get('page')['Upload'],
+            'title' => $pageTitle,
             'data' => [
-                'Licenses' => $dataset['License'],
-                'Categories' => $dataset['Category']
+                'Licenses' => $licenses,
+                'Categories' => $categories,
             ],
             'menus' => [],
-            'customData' => []
+            'customData' => [],
         ];
 
         return $page;
+    }
+
+    private static function postString(string $key): string
+    {
+        $value = $_POST[$key] ?? '';
+
+        return is_string($value) ? $value : '';
+    }
+
+    /** @param array<mixed> $session */
+    private static function sessionString(array $session, string $key): ?string
+    {
+        $value = $session[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @return array{code: string, message: string, errbox: true} */
+    private static function uploadError(string $code): array
+    {
+        $message = Languages::get('msg', $code);
+
+        return [
+            'code' => $code,
+            'message' => is_string($message) ? $message : $code,
+            'errbox' => true,
+        ];
     }
 }

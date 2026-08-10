@@ -43,6 +43,7 @@ $finder = PhpCsFixer\Finder::create()
     ->append([
         __DIR__.'/App/Controllers/Pages/admin/Config.php',
         __DIR__.'/App/Controllers/Pages/api/Preview.php',
+        __DIR__.'/App/Controllers/Pages/Upload.php',
         __DIR__.'/App/Models/Backlink.php',
         __DIR__.'/App/Models/Search.php',
         __DIR__.'/App/Services/Mark/MarkHandler.php',

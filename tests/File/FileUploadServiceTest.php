@@ -52,6 +52,11 @@ final class RecordingObjectStorage implements ObjectStorageInterface
         return new StoredObject($key, $this->createsObject);
     }
 
+    public function exists(ObjectKey $key): bool
+    {
+        return false;
+    }
+
     public function delete(ObjectKey $key): void
     {
         $this->deleted[] = $key->value;

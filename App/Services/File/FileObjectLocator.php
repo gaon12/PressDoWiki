@@ -43,4 +43,16 @@ final class FileObjectLocator
             default => throw new InvalidArgumentException('The object storage type is unsupported.'),
         };
     }
+
+    /** @return list<ObjectKey> Current key first, followed by legacy conversion keys. */
+    public static function candidateKeys(string $sha256, string $documentTitle): array
+    {
+        $current = self::keyForDocument($sha256, $documentTitle);
+        $extension = strtolower(pathinfo($documentTitle, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['jpg', 'jpeg', 'png'], true)) {
+            return [$current];
+        }
+
+        return [$current, self::keyForExtension($sha256, 'webp')];
+    }
 }

@@ -19,6 +19,12 @@ function failObjectStorageTest(string $message): never
     exit(1);
 }
 
+/** @phpstan-impure */
+function lastMockCommand(MockHandler $handler): Aws\CommandInterface
+{
+    return $handler->getLastCommand();
+}
+
 try {
     new ObjectKey('../escape.webp');
     failObjectStorageTest('Object keys must reject parent traversal.');
@@ -37,6 +43,9 @@ $first = $local->store($key, $source);
 if (!$first->created) {
     failObjectStorageTest('The first local object write should create the object.');
 }
+if (!$local->exists($key)) {
+    failObjectStorageTest('A stored local object should be discoverable.');
+}
 $target = $testRoot . DIRECTORY_SEPARATOR . 'ab' . DIRECTORY_SEPARATOR . str_repeat('c', 64) . '.webp';
 if (file_get_contents($target) !== 'first object') {
     failObjectStorageTest('The local object should contain the source bytes.');
@@ -51,6 +60,9 @@ $local->delete($key);
 if (file_exists($target)) {
     failObjectStorageTest('Local object deletion should be idempotent.');
 }
+if ($local->exists($key)) {
+    failObjectStorageTest('A deleted local object should no longer be discoverable.');
+}
 unlink($source);
 rmdir(dirname($target));
 rmdir($testRoot);
@@ -63,7 +75,7 @@ try {
 
 $s3Source = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pressdo-s3-' . bin2hex(random_bytes(8));
 file_put_contents($s3Source, 's3 object');
-$handler = new MockHandler([new Result(), new Result()]);
+$handler = new MockHandler([new Result()]);
 $client = new S3Client([
     'version' => 'latest',
     'region' => 'ap-northeast-2',
@@ -75,12 +87,31 @@ $s3Result = $s3->store($key, $s3Source);
 if (!$s3Result->created) {
     failObjectStorageTest('A successful S3 conditional write should report object creation.');
 }
-$putCommand = $handler->getLastCommand();
+$putCommand = lastMockCommand($handler);
 if ($putCommand->getName() !== 'PutObject' || $putCommand['IfNoneMatch'] !== '*') {
     failObjectStorageTest('S3 writes must use IfNoneMatch to prevent overwrites.');
 }
-$s3->delete($key);
-if ($handler->getLastCommand()->getName() !== 'DeleteObject') {
+$headHandler = new MockHandler([new Result()]);
+$headClient = new S3Client([
+    'version' => 'latest',
+    'region' => 'ap-northeast-2',
+    'credentials' => false,
+    'handler' => $headHandler,
+]);
+$headStorage = new S3($headClient, 'test-bucket');
+if (!$headStorage->exists($key) || lastMockCommand($headHandler)->getName() !== 'HeadObject') {
+    failObjectStorageTest('S3 existence checks should issue HeadObject.');
+}
+$deleteHandler = new MockHandler([new Result()]);
+$deleteClient = new S3Client([
+    'version' => 'latest',
+    'region' => 'ap-northeast-2',
+    'credentials' => false,
+    'handler' => $deleteHandler,
+]);
+$deleteStorage = new S3($deleteClient, 'test-bucket');
+$deleteStorage->delete($key);
+if (lastMockCommand($deleteHandler)->getName() !== 'DeleteObject') {
     failObjectStorageTest('S3 compensation should issue DeleteObject.');
 }
 unlink($s3Source);

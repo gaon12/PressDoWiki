@@ -77,6 +77,26 @@ final readonly class S3 implements ObjectStorageInterface
         throw new StorageException('The S3 conditional write could not be completed.');
     }
 
+    public function exists(ObjectKey $key): bool
+    {
+        try {
+            $this->client->headObject([
+                'Bucket' => $this->bucket,
+                'Key' => $key->value,
+            ]);
+
+            return true;
+        } catch (S3Exception $error) {
+            if ($error->getStatusCode() === 404) {
+                return false;
+            }
+
+            throw new StorageException('The S3 object existence check failed.', previous: $error);
+        } catch (Throwable $error) {
+            throw new StorageException('The S3 object existence check failed.', previous: $error);
+        }
+    }
+
     public function delete(ObjectKey $key): void
     {
         try {

@@ -8,8 +8,10 @@ use PressDo\App\Controllers\ACL;
 use PressDo\App\Helpers\{Namespaces,Languages,DefaultConfig, Config};
 use PressDo\App\Http\WikiUrl;
 use PressDo\App\Services\File\FileObjectLocator;
+use PressDo\App\Services\File\FileObjectResolver;
 use PressDo\App\Services\Mark\MarkupLinks;
 use PressDo\App\Services\Search\SearchTextExtractor;
+use PressDo\App\Services\Uploaders\ObjectStorageFactory;
 
 class Wiki extends Controller
 {
@@ -233,8 +235,10 @@ class Wiki extends Controller
             ];
         } elseif ($namespace == Namespaces::file()) {
             $file = Files::load($uuid);
-            $key = FileObjectLocator::keyForDocument($file['hash'], $title);
-            $data['file_endpoint'] = FileObjectLocator::publicPath((string) Config::get('storage.type'), $key);
+            $storageType = (string) Config::get('storage.type');
+            $storage = ObjectStorageFactory::create($storageType);
+            $key = (new FileObjectResolver($storage))->resolve($file['hash'], $title);
+            $data['file_endpoint'] = FileObjectLocator::publicPath($storageType, $key);
             $data['transparent_img'] = self::getTransparentBackground($file['width'], $file['height']);
         } else {
             $data['user'] = false;

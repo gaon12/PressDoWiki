@@ -40,7 +40,7 @@ final readonly class PdoDocumentMoveStore
 
         try {
             $move = $this->database->prepare(
-                "UPDATE `document` SET `namespace`=?, `title`=? WHERE `uuid`=? AND `namespace`=? AND `title`=? AND `status`='normal'",
+                "UPDATE document SET namespace=?, title=? WHERE uuid=? AND namespace=? AND title=? AND status='normal'",
             );
             $move->execute([
                 $destinationNamespace,

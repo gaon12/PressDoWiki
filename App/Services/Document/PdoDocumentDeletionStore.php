@@ -27,7 +27,7 @@ final readonly class PdoDocumentDeletionStore
 
         try {
             $markDeleted = $this->database->prepare(
-                "UPDATE `document` SET `status`='delete' WHERE `uuid`=? AND `status`='normal'",
+                "UPDATE document SET status='delete' WHERE uuid=? AND status='normal'",
             );
             $markDeleted->execute([$revision->documentId]);
             if ($markDeleted->rowCount() !== 1) {
@@ -36,17 +36,17 @@ final readonly class PdoDocumentDeletionStore
 
             (new PdoDocumentRevisionStore($this->database))->append($revision);
 
-            $deleteSearch = $this->database->prepare('DELETE FROM `search_index` WHERE `document`=?');
+            $deleteSearch = $this->database->prepare('DELETE FROM search_index WHERE document=?');
             $deleteSearch->execute([$revision->documentId]);
 
             // Incoming links belong to their source documents and remain useful
             // as references to a now-missing title. Only this document's outgoing
             // relationships cease to exist when its content is deleted.
-            $deleteOutgoingLinks = $this->database->prepare('DELETE FROM `links` WHERE `from_uuid`=?');
+            $deleteOutgoingLinks = $this->database->prepare('DELETE FROM links WHERE from_uuid=?');
             $deleteOutgoingLinks->execute([$revision->documentId]);
 
             $markIndexesSynchronized = $this->database->prepare(
-                "UPDATE `document` SET `backlink_updated`='1' WHERE `uuid`=?",
+                "UPDATE document SET backlink_updated='1' WHERE uuid=?",
             );
             $markIndexesSynchronized->execute([$revision->documentId]);
 

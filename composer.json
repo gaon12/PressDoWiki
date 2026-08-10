@@ -21,6 +21,7 @@
 			"php tests/Infrastructure/JsonFileTest.php",
 			"php tests/CspTest.php",
 			"php tests/SqlDialectTest.php",
+			"php tests/ServiceSqlPortabilityTest.php",
 			"php tests/ConfigTest.php",
 			"php tests/GeoIpTest.php",
 			"php tests/Admin/SettingsCatalogTest.php",

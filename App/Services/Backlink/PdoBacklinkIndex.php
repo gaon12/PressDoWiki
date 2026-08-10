@@ -34,7 +34,7 @@ final readonly class PdoBacklinkIndex
         }
 
         try {
-            $delete = $this->database->prepare('DELETE FROM `links` WHERE `from_uuid`=?');
+            $delete = $this->database->prepare('DELETE FROM links WHERE from_uuid=?');
             $delete->execute([$documentId]);
 
             foreach (array_chunk($targets, self::INSERT_CHUNK_SIZE) as $chunk) {
@@ -49,13 +49,13 @@ final readonly class PdoBacklinkIndex
                 }
 
                 $insert = $this->database->prepare(
-                    'INSERT INTO `links` (`namespace`, `title`, `from_uuid`, `type`) VALUES ' . $placeholders,
+                    'INSERT INTO links (namespace, title, from_uuid, type) VALUES ' . $placeholders,
                 );
                 $insert->execute($parameters);
             }
 
             $complete = $this->database->prepare(
-                "UPDATE `document` SET `backlink_updated`='1' WHERE `uuid`=?",
+                "UPDATE document SET backlink_updated='1' WHERE uuid=?",
             );
             $complete->execute([$documentId]);
 

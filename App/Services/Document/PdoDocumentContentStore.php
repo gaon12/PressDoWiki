@@ -25,7 +25,7 @@ final readonly class PdoDocumentContentStore
 
         $this->transactional(function () use ($namespace, $title, $revision): void {
             $create = $this->database->prepare(
-                'INSERT INTO `document` (`uuid`, `namespace`, `title`) VALUES (?, ?, ?)',
+                'INSERT INTO document (uuid, namespace, title) VALUES (?, ?, ?)',
             );
             try {
                 $create->execute([$revision->documentId, $namespace, $title]);
@@ -80,7 +80,7 @@ final readonly class PdoDocumentContentStore
             $this->assertLatestRevision($revision->documentId, $expectedBaseRevision);
 
             $restore = $this->database->prepare(
-                "UPDATE `document` SET `status`='normal' WHERE `uuid`=? AND `status`='delete'",
+                "UPDATE document SET status='normal' WHERE uuid=? AND status='delete'",
             );
             $restore->execute([$revision->documentId]);
             if ($restore->rowCount() !== 1) {
@@ -148,12 +148,12 @@ final readonly class PdoDocumentContentStore
             // SQLite has no SELECT ... FOR UPDATE. A harmless write acquires its
             // transaction write lock before the revision number is inspected.
             $lock = $this->database->prepare(
-                'UPDATE `document` SET `backlink_updated`=`backlink_updated` WHERE `uuid`=?',
+                'UPDATE document SET backlink_updated=backlink_updated WHERE uuid=?',
             );
             $lock->execute([$documentId]);
-            $sql = 'SELECT `namespace`, `title`, `status` FROM `document` WHERE `uuid`=?';
+            $sql = 'SELECT namespace, title, status FROM document WHERE uuid=?';
         } elseif (in_array(strtolower($driver), ['mysql', 'pgsql'], true)) {
-            $sql = 'SELECT `namespace`, `title`, `status` FROM `document` WHERE `uuid`=? FOR UPDATE';
+            $sql = 'SELECT namespace, title, status FROM document WHERE uuid=? FOR UPDATE';
         } else {
             throw new RuntimeException("Unsupported document database driver: {$driver}");
         }
@@ -193,7 +193,7 @@ final readonly class PdoDocumentContentStore
 
     private function assertLatestRevision(string $documentId, int $expectedBaseRevision): void
     {
-        $select = $this->database->prepare('SELECT MAX(`rev`) FROM `history` WHERE `document`=?');
+        $select = $this->database->prepare('SELECT MAX(rev) FROM history WHERE document=?');
         $select->execute([$documentId]);
         $latest = $select->fetchColumn();
 

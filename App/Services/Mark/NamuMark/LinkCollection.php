@@ -19,7 +19,7 @@ final class LinkCollection
      *     redirect: list<string>,
      *     include: list<string>,
      *     file: list<string>,
-     *     category: list<string>
+     *     category: array<string, list<string>>
      * }
      */
     private array $links = [
@@ -37,13 +37,27 @@ final class LinkCollection
         }
     }
 
+    public function addRedirect(string $document): void
+    {
+        if ($this->links['redirect'] === []) {
+            $this->links['redirect'][] = $document;
+        }
+    }
+
+    public function addCategory(string $category): void
+    {
+        if (!array_key_exists($category, $this->links['category'])) {
+            $this->links['category'][$category] = [];
+        }
+    }
+
     /**
      * @return array{
      *     link: list<string>,
      *     redirect: list<string>,
      *     include: list<string>,
      *     file: list<string>,
-     *     category: list<string>
+     *     category: array<string, list<string>>
      * }
      */
     public function all(): array

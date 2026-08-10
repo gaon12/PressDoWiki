@@ -20,10 +20,11 @@ The repository-wide contribution rules are recorded in
 The current slice supports headings, paragraphs and line breaks, bold, italic,
 underline, both common strike-through forms, internal links, HTTP(S) links,
 quotes nested up to eight levels, unordered lists nested up to eight levels, and
-literal `{{{` / `}}}` code blocks. Unknown syntax is rendered as escaped text.
-Tables, ordered lists, footnotes, macros, includes, files, categories, redirects,
-syntax highlighting, and parameterized styling remain unsupported until their
-grammar and resource limits are specified and tested.
+literal `{{{` / `}}}` code blocks. Category declarations and first-line Korean
+or English redirect directives produce explicit backlink metadata. Unknown
+syntax is rendered as escaped text. Tables, ordered lists, footnotes, macros,
+includes, files, syntax highlighting, and parameterized styling remain
+unsupported until their grammar and resource limits are specified and tested.
 
 ## Security invariants
 
@@ -34,5 +35,7 @@ grammar and resource limits are specified and tested.
 - Documents with more than 100,000 lines are rejected before block parsing.
 - Quotes and lists stop at eight nesting levels.
 - Literal code blocks are escaped and never sent through the inline parser.
+- Redirect targets are local document names no longer than 255 bytes.
+- Category names are limited to 255 bytes and deduplicated before indexing.
 - Unsupported or malformed constructs remain visible rather than disappearing.
 - Later macro and include support must have depth, output-size, and cycle limits.

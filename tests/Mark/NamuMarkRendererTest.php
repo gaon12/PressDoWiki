@@ -18,6 +18,7 @@ $source = <<<'NAMUMARK'
 '''굵게''' ''기울임'' __밑줄__ ~~취소~~ --취소 2--
 [[내부 문서|안전한 링크]] [[https://example.test/path?q=1|외부 링크]]
 [[javascript:alert(1)|위험한 링크]]
+[[분류:보안]] [[분류:보안]]
 NAMUMARK;
 
 $result = (new Renderer())->render($source);
@@ -43,6 +44,14 @@ if (!str_contains($html, 'href="/w/%EB%82%B4%EB%B6%80%20%EB%AC%B8%EC%84%9C"')) {
 
 if ($result['links']['link'] !== ['내부 문서']) {
     failNamuMarkRendererTest('Internal document targets should be returned for backlink indexing.');
+}
+
+if ($result['categories'] !== ['보안' => []] || $result['links']['category'] !== ['보안' => []]) {
+    failNamuMarkRendererTest('Category links should return the metadata shape expected by backlink indexing.');
+}
+
+if (str_contains($html, '분류:보안')) {
+    failNamuMarkRendererTest('Category declarations should be metadata rather than article body links.');
 }
 
 try {

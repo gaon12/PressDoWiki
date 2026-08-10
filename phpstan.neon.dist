@@ -6,3 +6,5 @@ parameters:
         - App/Helpers/Csp.php
         - App/Helpers/RouteControllerResolver.php
         - App/Helpers/SqlDialect.php
+        - App/Infrastructure/Rendering
+        - App/Shared/Rendering

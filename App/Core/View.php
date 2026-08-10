@@ -28,6 +28,8 @@ final class View
 
     private readonly TemplateRenderer $templates;
 
+    private readonly string $viewRoot;
+
     /**
      * @param array<string, mixed> $session
      */
@@ -36,8 +38,9 @@ final class View
         $root = dirname(__DIR__, 2);
 
         $this->session = $session;
+        $this->viewRoot = $root . '/resources/views';
         $this->templates = $templates ?? new BladeTemplateRenderer(
-            $root . '/resources/views',
+            $this->viewRoot,
             $root . '/var/cache/blade',
         );
     }
@@ -196,7 +199,12 @@ final class View
 
     private function skinExists(string $skinName): bool
     {
-        return is_file($this->skinConfigPath($skinName)) && $this->findSkinLayoutPath($skinName) !== null;
+        if (preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z/', $skinName) !== 1) {
+            return false;
+        }
+
+        return is_file($this->skinConfigPath($skinName))
+            && ($this->builtInSkinView($skinName) !== null || $this->findSkinLayoutPath($skinName) !== null);
     }
 
     /**
@@ -235,6 +243,11 @@ final class View
 
     private function renderSkinLayout(string $skinName): string
     {
+        $builtInView = $this->builtInSkinView($skinName);
+        if ($builtInView !== null) {
+            return $this->templates->render($builtInView, $this->params);
+        }
+
         $path = $this->skinLayoutPath($skinName);
         if (str_ends_with($path, '.php')) {
             return $this->renderPhpTemplate($path, $this->params);
@@ -263,6 +276,13 @@ final class View
         }
 
         return null;
+    }
+
+    private function builtInSkinView(string $skinName): ?string
+    {
+        $path = $this->viewRoot . '/skins/' . $skinName . '.blade.php';
+
+        return is_file($path) ? 'skins.' . $skinName : null;
     }
 
     /**

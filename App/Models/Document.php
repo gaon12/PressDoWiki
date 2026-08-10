@@ -8,6 +8,7 @@ use PressDo\App\Core\Controller;
 use PressDo\App\Models\Concerns\DocumentPageLists;
 use PressDo\App\Helpers\SqlDialect;
 use PressDo\App\Services\Document\DocumentRevision;
+use PressDo\App\Services\Document\PdoDocumentDeletionStore;
 use PressDo\App\Services\Document\PdoDocumentRevisionStore;
 
 class Document extends \PressDo\App\Core\Model
@@ -201,31 +202,27 @@ class Document extends \PressDo\App\Core\Model
     public static function delete(string $uuid, ?string $cont_m, ?string $cont_i, int $length, int $baserev, string $comment): void
     {
         $db = self::db();
-        $uuid = self::uuid2bin($uuid);
+        $documentId = self::uuid2bin($uuid);
 
         if($cont_m !== null)
             $cont_m = self::uuid2bin($cont_m);
         elseif($cont_i !== null)
             $cont_i = self::uuid2bin($cont_i);
 
-        $a = $db->prepare("UPDATE `document` SET `status`='delete' WHERE `uuid`=?");
-        $a->execute([$uuid]);
-
-        $d = [
-            self::uuid2bin(self::generateUuid()),
-            $uuid,
-            $comment,
-            $baserev + 1,
-            -$length,
-            $cont_m,
-            $cont_i
-        ];
-        
         try {
-            $b = $db->prepare("INSERT INTO `history`(uuid,document,comment,action,rev,count,contributor_m,contributor_i) VALUES(?,?,?,'delete',?,?,?,?)");
-            $b->execute($d);
+            (new PdoDocumentDeletionStore($db))->delete(new DocumentRevision(
+                revisionId: self::uuid2bin(self::generateUuid()),
+                documentId: $documentId,
+                content: null,
+                comment: $comment,
+                action: 'delete',
+                revision: $baserev + 1,
+                lengthDelta: -$length,
+                contributorMemberId: $cont_m,
+                contributorIpId: $cont_i,
+            ));
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 문서 삭제 중 오류 발생');
+            throw new ErrorException($err->getMessage().': 문서 삭제 중 오류 발생', previous: $err);
         }
     }
 

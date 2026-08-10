@@ -10,6 +10,7 @@ use PressDo\App\Services\File\FileUploadService;
 use PressDo\App\Services\File\PdoFileDocumentStore;
 use PressDo\App\Services\File\PendingFileUpload;
 use PressDo\App\Services\Uploaders\ObjectKey;
+use PressDo\App\Services\Uploaders\ObjectPage;
 use PressDo\App\Services\Uploaders\ObjectStorageInterface;
 use PressDo\App\Services\Uploaders\StorageException;
 use PressDo\App\Services\Uploaders\StoredObject;
@@ -55,6 +56,11 @@ final class RecordingObjectStorage implements ObjectStorageInterface
     public function exists(ObjectKey $key): bool
     {
         return false;
+    }
+
+    public function listObjects(?ObjectKey $after, int $limit): ObjectPage
+    {
+        return new ObjectPage([], null);
     }
 
     public function delete(ObjectKey $key): void

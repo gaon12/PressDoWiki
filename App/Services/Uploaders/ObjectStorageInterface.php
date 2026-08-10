@@ -12,6 +12,9 @@ interface ObjectStorageInterface
     /** Check whether an object is currently addressable at this key. */
     public function exists(ObjectKey $key): bool;
 
+    /** List keys lexicographically after the optional cursor. */
+    public function listObjects(?ObjectKey $after, int $limit): ObjectPage;
+
     /** Delete an object created by a failed higher-level transaction. */
     public function delete(ObjectKey $key): void;
 }

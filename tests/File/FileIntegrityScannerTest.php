@@ -8,6 +8,7 @@ use PressDo\App\Services\File\FileObjectResolver;
 use PressDo\App\Services\File\FileObjectState;
 use PressDo\App\Services\File\PdoFileIntegrityRepository;
 use PressDo\App\Services\Uploaders\ObjectKey;
+use PressDo\App\Services\Uploaders\ObjectPage;
 use PressDo\App\Services\Uploaders\ObjectStorageInterface;
 use PressDo\App\Services\Uploaders\StoredObject;
 
@@ -37,6 +38,11 @@ final readonly class IntegrityObjectStorage implements ObjectStorageInterface
     public function exists(ObjectKey $key): bool
     {
         return in_array($key->value, $this->existing, true);
+    }
+
+    public function listObjects(?ObjectKey $after, int $limit): ObjectPage
+    {
+        return new ObjectPage([], null);
     }
 
     public function delete(ObjectKey $key): void {}

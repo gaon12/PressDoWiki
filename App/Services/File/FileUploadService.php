@@ -13,9 +13,20 @@ final readonly class FileUploadService
     public function __construct(
         private ObjectStorageInterface $storage,
         private PdoFileDocumentStore $documents,
+        private ObjectMutationLockInterface $lock,
     ) {}
 
     public function upload(PendingFileUpload $upload): void
+    {
+        $this->lock->synchronized(
+            $upload->objectKey,
+            function () use ($upload): void {
+                $this->uploadLocked($upload);
+            },
+        );
+    }
+
+    private function uploadLocked(PendingFileUpload $upload): void
     {
         if ($this->documents->hasDigest($upload->metadata->sha256)) {
             throw new DuplicateFileException('The same file binary is already registered.');

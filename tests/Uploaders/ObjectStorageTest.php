@@ -46,6 +46,10 @@ if (!$first->created) {
 if (!$local->exists($key)) {
     failObjectStorageTest('A stored local object should be discoverable.');
 }
+$localMetadata = $local->metadata($key);
+if ($localMetadata === null || $localMetadata->size !== strlen('first object') || $localMetadata->lastModified < 1) {
+    failObjectStorageTest('Local metadata reads should return the current size and modification time.');
+}
 $target = $testRoot . DIRECTORY_SEPARATOR . 'ab' . DIRECTORY_SEPARATOR . str_repeat('c', 64) . '.webp';
 if (file_get_contents($target) !== 'first object') {
     failObjectStorageTest('The local object should contain the source bytes.');
@@ -73,6 +77,9 @@ if (file_exists($target)) {
 }
 if ($local->exists($key)) {
     failObjectStorageTest('A deleted local object should no longer be discoverable.');
+}
+if ($local->metadata($key) !== null) {
+    failObjectStorageTest('Deleted local objects should not return stale metadata.');
 }
 unlink($source);
 rmdir(dirname($target));
@@ -103,7 +110,13 @@ $putCommand = lastMockCommand($handler);
 if ($putCommand->getName() !== 'PutObject' || $putCommand['IfNoneMatch'] !== '*') {
     failObjectStorageTest('S3 writes must use IfNoneMatch to prevent overwrites.');
 }
-$headHandler = new MockHandler([new Result()]);
+$headHandler = new MockHandler([
+    new Result(),
+    new Result([
+        'LastModified' => new DateTimeImmutable('@1700000000'),
+        'ContentLength' => 9,
+    ]),
+]);
 $headClient = new S3Client([
     'version' => 'latest',
     'region' => 'ap-northeast-2',
@@ -113,6 +126,10 @@ $headClient = new S3Client([
 $headStorage = new S3($headClient, 'test-bucket');
 if (!$headStorage->exists($key) || lastMockCommand($headHandler)->getName() !== 'HeadObject') {
     failObjectStorageTest('S3 existence checks should issue HeadObject.');
+}
+$headMetadata = $headStorage->metadata($key);
+if ($headMetadata?->lastModified !== 1_700_000_000 || $headMetadata->size !== 9) {
+    failObjectStorageTest('S3 metadata reads should validate HeadObject timestamps and sizes.');
 }
 $deleteHandler = new MockHandler([new Result()]);
 $deleteClient = new S3Client([

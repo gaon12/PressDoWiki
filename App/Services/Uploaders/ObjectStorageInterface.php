@@ -12,6 +12,9 @@ interface ObjectStorageInterface
     /** Check whether an object is currently addressable at this key. */
     public function exists(ObjectKey $key): bool;
 
+    /** Read current metadata for one object, or null when it no longer exists. */
+    public function metadata(ObjectKey $key): ?ObjectInfo;
+
     /** List keys lexicographically after the optional cursor. */
     public function listObjects(?ObjectKey $after, int $limit): ObjectPage;
 

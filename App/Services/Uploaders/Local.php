@@ -72,6 +72,22 @@ final readonly class Local implements ObjectStorageInterface
         return is_file($this->target($key, false));
     }
 
+    public function metadata(ObjectKey $key): ?ObjectInfo
+    {
+        $target = $this->target($key, false);
+        if (!is_file($target)) {
+            return null;
+        }
+
+        $modified = filemtime($target);
+        $size = filesize($target);
+        if ($modified === false || $size === false) {
+            throw new StorageException("Local object metadata could not be read: {$key->value}");
+        }
+
+        return new ObjectInfo($key, $modified, $size);
+    }
+
     public function listObjects(?ObjectKey $after, int $limit): ObjectPage
     {
         if ($limit < 1 || $limit > 100) {

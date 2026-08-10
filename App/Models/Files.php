@@ -1,16 +1,21 @@
 <?php
+
+declare(strict_types=1);
+
 namespace PressDo\App\Models;
 
-use \PDO as PDO;
-use \PDOException as PDOException;
-use \ErrorException as ErrorException;
+use ErrorException;
+use PDO;
+use PDOException;
 use PressDo\App\Services\Document\DocumentRevision;
 use PressDo\App\Services\File\FileMetadata;
 use PressDo\App\Services\File\FileUploadService;
-use PressDo\App\Services\File\PendingFileUpload;
 use PressDo\App\Services\File\PdoFileDocumentStore;
+use PressDo\App\Services\File\PdoObjectMutationLock;
+use PressDo\App\Services\File\PendingFileUpload;
 use PressDo\App\Services\Uploaders\ObjectKey;
 use PressDo\App\Services\Uploaders\ObjectStorageInterface;
+use UnexpectedValueException;
 
 class Files extends \PressDo\App\Core\Model
 {
@@ -45,7 +50,7 @@ class Files extends \PressDo\App\Core\Model
                 $metadata,
             );
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 파일 문서 저장 중 오류 발생', previous: $err);
+            throw new ErrorException($err->getMessage() . ': 파일 문서 저장 중 오류 발생', previous: $err);
         }
 
         return self::bin2uuid($documentId);
@@ -77,7 +82,11 @@ class Files extends \PressDo\App\Core\Model
             $height,
         );
 
-        (new FileUploadService($storage, new PdoFileDocumentStore($db)))->upload(new PendingFileUpload(
+        (new FileUploadService(
+            $storage,
+            new PdoFileDocumentStore($db),
+            new PdoObjectMutationLock($db),
+        ))->upload(new PendingFileUpload(
             namespace: $namespace,
             title: $title,
             sourcePath: $sourcePath,
@@ -107,10 +116,11 @@ class Files extends \PressDo\App\Core\Model
             throw new \InvalidArgumentException('The file SHA-256 digest must be hexadecimal.');
         }
 
-        if($cont_m !== null)
+        if ($cont_m !== null) {
             $cont_m = self::uuid2bin($cont_m);
-        elseif($cont_i !== null)
+        } elseif ($cont_i !== null) {
             $cont_i = self::uuid2bin($cont_i);
+        }
 
         return [
             $documentId,
@@ -129,20 +139,37 @@ class Files extends \PressDo\App\Core\Model
         ];
     }
 
+    /** @return array{hash: string, width: int, height: int} */
     public static function load(string $fileuuid): array
     {
         $db = self::db();
         $uuid = self::uuid2bin($fileuuid);
 
         try {
-            $g = $db->prepare("SELECT `hash`, width, height FROM `files` WHERE uuid=?");
+            $g = $db->prepare('SELECT `hash`, width, height FROM `files` WHERE uuid=?');
             $g->execute([$uuid]);
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 파일 데이터 저장 중 오류 발생');
+            throw new ErrorException($err->getMessage() . ': 파일 데이터 저장 중 오류 발생', previous: $err);
         }
-        $dataset = $g->fetch(PDO::FETCH_ASSOC);
-        $dataset['hash'] = bin2hex($dataset['hash']);
-        return $dataset;
-    }
 
+        $dataset = $g->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($dataset)) {
+            throw new UnexpectedValueException('The requested file metadata does not exist.');
+        }
+        $hash = $dataset['hash'] ?? null;
+        $width = $dataset['width'] ?? null;
+        $height = $dataset['height'] ?? null;
+        if (
+            !is_string($hash)
+            || strlen($hash) !== 32
+            || (!is_int($width) && !is_string($width))
+            || (!is_int($height) && !is_string($height))
+            || !ctype_digit((string) $width)
+            || !ctype_digit((string) $height)
+        ) {
+            throw new UnexpectedValueException('The file metadata row has an invalid shape.');
+        }
+
+        return ['hash' => bin2hex($hash), 'width' => (int) $width, 'height' => (int) $height];
+    }
 }

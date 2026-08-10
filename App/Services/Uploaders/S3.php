@@ -99,6 +99,40 @@ final readonly class S3 implements ObjectStorageInterface
         }
     }
 
+    public function metadata(ObjectKey $key): ?ObjectInfo
+    {
+        try {
+            $result = $this->client->headObject([
+                'Bucket' => $this->bucket,
+                'Key' => $key->value,
+            ]);
+            $modifiedValue = $result->get('LastModified');
+            $sizeValue = $result->get('ContentLength');
+            $modified = $modifiedValue instanceof DateTimeInterface
+                ? $modifiedValue->getTimestamp()
+                : (is_string($modifiedValue) ? strtotime($modifiedValue) : false);
+            if (
+                $modified === false
+                || (!is_int($sizeValue) && !is_string($sizeValue))
+                || !ctype_digit((string) $sizeValue)
+            ) {
+                throw new StorageException('The S3 object returned invalid metadata.');
+            }
+
+            return new ObjectInfo($key, $modified, (int) $sizeValue);
+        } catch (S3Exception $error) {
+            if ($error->getStatusCode() === 404) {
+                return null;
+            }
+
+            throw new StorageException('The S3 object metadata check failed.', previous: $error);
+        } catch (StorageException $error) {
+            throw $error;
+        } catch (Throwable $error) {
+            throw new StorageException('The S3 object metadata check failed.', previous: $error);
+        }
+    }
+
     public function listObjects(?ObjectKey $after, int $limit): ObjectPage
     {
         if ($limit < 1 || $limit > 100) {

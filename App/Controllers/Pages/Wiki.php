@@ -8,6 +8,7 @@ use PressDo\App\Controllers\ACL;
 use PressDo\App\Helpers\{Namespaces,Languages,DefaultConfig, Config};
 use PressDo\App\Http\WikiUrl;
 use PressDo\App\Services\Mark\MarkupLinks;
+use PressDo\App\Services\Search\SearchTextExtractor;
 
 class Wiki extends Controller
 {
@@ -249,64 +250,12 @@ class Wiki extends Controller
         return $page;
     }
 
-    private function updateSearchIndex(string $uuid, string $t): void
+    private function updateSearchIndex(string $uuid, string $html): void
     {
-        if (DefaultConfig::get('wiki.search_engine') !== 'SQL')
+        if (DefaultConfig::get('wiki.search_engine') !== 'SQL') {
             return;
-        /*$t = preg_replace('/<style[^>]*>[^<]*<\/style>/', '', $t);
-        $t = preg_replace('/<div class=\"wiki-macro-toc\"[^>]*>[^<]*<\/div>/', '', $t);
-        $t = preg_replace('/<a id[^>]*href=\"#toc\">[^<]*<\/a><span id[^>]>([^<]*)<span[^>]><\/span>/', '$1', $t);
-        $t = strip_tags($t);*/
-        //Dom\HTMLDocument::createFromString();
-        $dom = new \DOMDocument();
-        libxml_use_internal_errors(true); // HTML 파싱 오류 방지
-        //$dom->loadHTML('<?xml encoding="UTF-8">'.$t);
-        $dom->loadHTML('<?xml encoding="UTF-8">'.$t);
-        libxml_clear_errors();
-        $xp = new \DOMXPath($dom);
-        // style 태그
-        //$rs = $dom->getElementsByTagName('style');
-        //foreach ($rs as $r) {
-        //    $r->remove();
-        //}
-        // 목차
-        if ($dom->getElementById('toc'))
-            $dom->getElementById('toc')->remove();
-
-        // 각주
-        /*$nds = $xp->query("//a[contains(@class, 'wiki-fn-content')]");
-        foreach ($nds as $node) {
-            $span = $node->getElementsByTagName('span')->item(0);
-            if ($span && $span->hasAttribute('id')) {
-                $originalId = $span->getAttribute('id');
-                $newId = substr($originalId, 1);
-                
-                $existingSpan = $xp->query("//span[@id='$newId']")->item(0);
-                
-                if ($existingSpan) {
-                    $parentNode = $existingSpan->parentNode;
-                    $node->parentNode->replaceWith($node, $parentNode);
-                }
-            }
-        }*/
-        
-        // 문단
-        for ($i=1; $i<=6; $i++) {
-            $rs = $dom->getElementsByTagName('h'.$i);
-            foreach ($rs as $r) {
-                $rtg = $r->getElementsByTagName('a')->item(0);
-                $rtgt = $r->getElementsByTagName('span')->item(0);
-                $r->removeChild($rtg);
-            }
         }
-        $t = $dom->saveHTML();
-        $t = preg_replace('/<style[^>]*>[^<]*<\/style>/', '', $t);
-        $t = strip_tags($t);
-        $t = preg_replace('/{{{#!wiki style=\"[^"]*\"\n(.*)}}}/', ' $1 ', $t);
 
-        $result = html_entity_decode($t);
-        $result = preg_replace('/( {2,})/', ' ', $result);
-        $result = str_replace("\n", ' ', $result);
-        Search::updateIndex($uuid, trim($result));
+        Search::updateIndex($uuid, (new SearchTextExtractor())->extract($html));
     }
 }

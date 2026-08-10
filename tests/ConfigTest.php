@@ -73,6 +73,20 @@ if (in_array('sqlite', PDO::getAvailableDrivers(), true)) {
         $rows,
         'Config::setBulk should roll back to previous rows when insert fails.'
     );
+
+    $pdo->exec("INSERT INTO config (`key`, `value`) VALUES ('aclgroup.1.style', 'color: gray')");
+    Config::replaceValues(['wiki.site_name' => 'Changed', 'wiki.timezone' => 'Asia/Seoul']);
+    $rows = $pdo->query("SELECT `key`, `value` FROM config ORDER BY `key`")->fetchAll(PDO::FETCH_KEY_PAIR);
+    assertConfigValue(
+        [
+            'aclgroup.1.style' => 'color: gray',
+            'wiki.front_page' => 'Frontpage',
+            'wiki.site_name' => 'Changed',
+            'wiki.timezone' => 'Asia/Seoul',
+        ],
+        $rows,
+        'Config::replaceValues should preserve settings outside the administrator catalog.'
+    );
 } else {
     fwrite(STDOUT, "Config setBulk transaction tests skipped: pdo_sqlite is unavailable.".PHP_EOL);
 }

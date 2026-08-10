@@ -16,7 +16,12 @@ function assertRequestValue(mixed $expected, mixed $actual, string $message): vo
 
 $request = new Request(
     ['redirect' => '/w/Home', 'nested' => ['bad']],
-    ['username' => 'alice', 'remember' => '1', 'json' => '{"ok":true}'],
+    [
+        'username' => 'alice',
+        'remember' => '1',
+        'json' => '{"ok":true}',
+        'settings' => ['wiki.site_name' => 'PressDo'],
+    ],
     ['token' => 'cookie-value'],
     ['REMOTE_ADDR' => '127.0.0.1']
 );
@@ -29,5 +34,10 @@ assertRequestValue('cookie-value', $request->cookieString('token'), 'Request sho
 assertRequestValue('127.0.0.1', $request->serverString('REMOTE_ADDR'), 'Request should read server strings.');
 assertRequestValue(['ok' => true], $request->postJson('json'), 'Request should decode JSON POST values.');
 assertRequestValue(null, $request->postJson('missing'), 'Request should return null for missing JSON POST values.');
+assertRequestValue(
+    ['wiki.site_name' => 'PressDo'],
+    $request->postArray('settings'),
+    'Request should expose string-keyed POST objects without using the superglobal.',
+);
 
 echo "Request tests passed.".PHP_EOL;

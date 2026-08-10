@@ -24,7 +24,10 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/Http',
         __DIR__.'/tests/Admin',
     ])
-    ->append([__DIR__.'/tests/GeoIpTest.php']);
+    ->append([
+        __DIR__.'/App/Controllers/Pages/admin/Config.php',
+        __DIR__.'/tests/GeoIpTest.php',
+    ]);
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)

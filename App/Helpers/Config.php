@@ -4,6 +4,7 @@ namespace PressDo\App\Helpers;
 
 class Config
 {
+    /** @var array<string, mixed> */
     private static array $Configs = [];
 
     private static $db = null;
@@ -58,6 +59,8 @@ class Config
 
     /**
      * get All array
+     *
+     * @return array<string, mixed>
      */
     public static function all(): array
     {
@@ -114,6 +117,37 @@ class Config
             }
 
             throw $e;
+        }
+    }
+
+    /**
+     * Atomically replace the scalar values selected by the settings catalog.
+     * Unrelated rows, including ACL configuration, are deliberately preserved.
+     *
+     * @param array<string, string> $values
+     */
+    public static function replaceValues(array $values): void
+    {
+        $db = self::db();
+        $delete = $db->prepare('DELETE FROM config WHERE `key` = ?');
+        $insert = $db->prepare('INSERT INTO config (`key`, `value`) VALUES (?, ?)');
+
+        try {
+            $db->beginTransaction();
+
+            foreach ($values as $key => $value) {
+                $delete->execute([$key]);
+                $insert->execute([$key, $value]);
+            }
+
+            $db->commit();
+            static::$Configs = [];
+        } catch (\Throwable $exception) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+
+            throw $exception;
         }
     }
 }

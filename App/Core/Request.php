@@ -68,6 +68,18 @@ final class Request
     }
 
     /**
+     * Return a string-keyed POST object without exposing the raw superglobal.
+     *
+     * @return array<string, mixed>
+     */
+    public function postArray(string $key): array
+    {
+        $value = $this->post[$key] ?? null;
+
+        return is_array($value) ? self::stringKeyed($value) : [];
+    }
+
+    /**
      * @param array<string, mixed> $source
      */
     private function stringFrom(array $source, string $key, string $default): string

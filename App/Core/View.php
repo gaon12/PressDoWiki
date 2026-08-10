@@ -111,7 +111,9 @@ final class View
             $file = '../App/Views/layouts/notfound.latte';
         }
 
-        $this->params['innerLayout'] = $this->latte->renderToString($file, $this->params);
+        $this->params['innerLayout'] = $viewName === 'config'
+            ? $this->templates->render('admin.config', $this->params)
+            : $this->latte->renderToString($file, $this->params);
         $this->params['body'] = $this->renderSkinLayout($this->skin->name);
 
         return $this->templates->render('frame', $this->params);

@@ -471,28 +471,6 @@ qa('.rmag').forEach(r => {
     })
 })
 
-qa('.conf-del').forEach(r => {
-    e(r,'click', (e) => {
-        e.preventDefault()
-        var f = ce('form')
-        var i = ce('input')
-        var k = ce('input')
-        var j = r.id;
-        i.type = 'hidden'
-        i.name = 'delk'
-        i.value = g(j+'-k').value
-        k.type = 'hidden'
-        k.name = 'delv'
-        k.value = g(j+'-v').value
-        f.appendChild(i)
-        f.appendChild(k)
-        f.method = 'post'
-        f.action = window.location.href
-        document.body.appendChild(f)
-        f.submit()
-    })
-})
-
 qa('.passkey-remove').forEach(r => {
     e(r,'click', (e) => {
         var name = a.g(r,'targetname');

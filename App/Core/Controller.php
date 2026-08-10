@@ -125,7 +125,7 @@ class Controller
         $View = new View($this->session);
         $View->renderInit();
 
-        $license = $this->dataset['page']['view_name'] == 'License' ? json_decode(file_get_contents('../config/license.json'), true) : null;
+        $license = $this->dataset['page']['view_name'] == 'License' ? json_decode(file_get_contents(ProjectPaths::config('license.json')), true) : null;
 
         $paramSet = [
             'wiki' => $this->dataset,
@@ -228,8 +228,8 @@ class Controller
 
         if (
             DefaultConfig::get('mail.sign_smime') === true
-            && file_exists('../config/certificate.crt') && file_exists('../config/privkey.key')) {
-            $signer = new SMimeSigner('../config/certificate.crt', '../config/privkey.key', DefaultConfig::get('mail.smime_passphrase'));
+            && file_exists(ProjectPaths::config('certificate.crt')) && file_exists(ProjectPaths::config('privkey.key'))) {
+            $signer = new SMimeSigner(ProjectPaths::config('certificate.crt'), ProjectPaths::config('privkey.key'), DefaultConfig::get('mail.smime_passphrase'));
             $email = $signer->sign($email);
         }
 
@@ -303,8 +303,8 @@ class Controller
      */
     protected static function loadDiff(string $old, string $new, string $caption = ''): string
     {
-        require '../App/Helpers/Libraries/diff/Diff.php';
-        require '../App/Helpers/Libraries/diff/Inline.php';
+        require ProjectPaths::app('Helpers/Libraries/diff/Diff.php');
+        require ProjectPaths::app('Helpers/Libraries/diff/Inline.php');
 
         $a = explode("\n", $old);
         $b = explode("\n", $new);

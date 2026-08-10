@@ -17,6 +17,8 @@
 			"php tests/Compliance/LicenseBoundaryTest.php",
 			"php tests/SecurityTest.php",
 			"php tests/RouteControllerResolverTest.php",
+			"php tests/ProjectPathsTest.php",
+			"php tests/Infrastructure/JsonFileTest.php",
 			"php tests/CspTest.php",
 			"php tests/SqlDialectTest.php",
 			"php tests/ConfigTest.php",

@@ -6,10 +6,14 @@ parameters:
         - App/Controllers/Pages/admin/Config.php
         - App/Controllers/Pages/api/Preview.php
         - App/Core/Request.php
+        - App/Core/ProjectPaths.php
         - App/Core/Response.php
         - App/Core/Skin.php
         - App/Core/View.php
         - App/Helpers/Csp.php
+        - App/Helpers/DefaultConfig.php
+        - App/Helpers/Languages.php
+        - App/Helpers/Namespaces.php
         - App/Helpers/GeoIp.php
         - App/Helpers/RouteControllerResolver.php
         - App/Helpers/SqlDialect.php

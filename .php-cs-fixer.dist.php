@@ -15,6 +15,7 @@ $finder = PhpCsFixer\Finder::create()
     ->files()
     ->in([
         __DIR__.'/App/Admin/Settings',
+        __DIR__.'/App/Services/Backlink',
         __DIR__.'/App/Core',
         __DIR__.'/App/Helpers',
         __DIR__.'/App/Http',
@@ -27,10 +28,12 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/Http',
         __DIR__.'/tests/Mark',
         __DIR__.'/tests/Admin',
+        __DIR__.'/tests/Backlink',
         __DIR__.'/tests/Compliance',
     ])
     ->append([
         __DIR__.'/App/Controllers/Pages/admin/Config.php',
+        __DIR__.'/App/Models/Backlink.php',
         __DIR__.'/App/Services/Mark/MarkHandler.php',
         __DIR__.'/App/Services/Mark/Markdown/Loader.php',
         __DIR__.'/App/Services/Mark/MarkupLinks.php',

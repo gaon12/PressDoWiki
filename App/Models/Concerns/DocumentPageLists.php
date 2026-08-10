@@ -110,6 +110,12 @@ trait DocumentPageLists
         return $d->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * @return array{
+     *     License: list<array{title: string}>,
+     *     Category: list<array{title: string}>
+     * }
+     */
     public static function getLicensesAndCategories(): array
     {
         $db = self::db();

@@ -7,6 +7,7 @@ use PressDo\App\Core\Response;
 use PressDo\App\Controllers\ACL;
 use PressDo\App\Helpers\{Namespaces,Languages,DefaultConfig, Config};
 use PressDo\App\Http\WikiUrl;
+use PressDo\App\Services\File\FileObjectLocator;
 use PressDo\App\Services\Mark\MarkupLinks;
 use PressDo\App\Services\Search\SearchTextExtractor;
 
@@ -232,8 +233,8 @@ class Wiki extends Controller
             ];
         } elseif ($namespace == Namespaces::file()) {
             $file = Files::load($uuid);
-            $ext = str_replace(['jpg', 'png'], 'webp', implode('', array_slice(explode('.', $title), -1, 1)));
-            $data['file_endpoint'] = '/'.substr($file['hash'], 0, 2).'/'.$file['hash'].'.'.$ext;
+            $key = FileObjectLocator::keyForDocument($file['hash'], $title);
+            $data['file_endpoint'] = FileObjectLocator::publicPath((string) Config::get('storage.type'), $key);
             $data['transparent_img'] = self::getTransparentBackground($file['width'], $file['height']);
         } else {
             $data['user'] = false;

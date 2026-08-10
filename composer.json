@@ -24,6 +24,7 @@
 			"php tests/Admin/SettingsCatalogTest.php",
 			"php tests/ViewSkinTest.php",
 			"php tests/Http/LocalRedirectTest.php",
+			"php tests/Http/WikiUrlTest.php",
 			"php tests/MarkHandlerTest.php",
 			"php tests/Mark/MarkupResultTest.php",
 			"php tests/Mark/NamuMarkRendererTest.php",
@@ -34,6 +35,7 @@
 			"php tests/Rendering/BladeTemplateRendererTest.php",
 			"php tests/Rendering/FrameTemplateTest.php",
 			"php tests/Rendering/AdminConfigTemplateTest.php",
+			"php tests/Rendering/WikiTemplateBoundaryTest.php",
 			"php tests/Update/ReleaseVerifierTest.php",
 			"php tests/SchemaCompatibilityTest.php"
 		],

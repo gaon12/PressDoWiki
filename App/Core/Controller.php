@@ -137,7 +137,7 @@ class Controller
             'uri_data' => (array) $this->uri_data,
             'request_uri' => $this->request->serverString('REQUEST_URI'),
             'search_query' => $this->request->queryString('q'),
-            'post' => $_POST,
+            'post' => $this->request->postData(),
             'license' => $license,
             'api_config' => $this->api_config,
         ];

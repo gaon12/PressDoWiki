@@ -27,7 +27,10 @@ $request = new Request(
 );
 
 assertRequestValue('/w/Home', $request->queryString('redirect'), 'Request should read query strings.');
+assertRequestValue('/w/Home', $request->queryOptionalString('redirect'), 'Request should read optional query strings.');
+assertRequestValue(null, $request->queryOptionalString('missing'), 'Missing optional query strings should return null.');
 assertRequestValue('', $request->queryString('nested'), 'Request should not coerce arrays into strings.');
+assertRequestValue(null, $request->queryOptionalString('nested'), 'Optional query arrays should return null.');
 assertRequestValue('alice', $request->postString('username'), 'Request should read POST strings.');
 assertRequestValue(true, $request->hasPost('remember'), 'Request should report present POST keys.');
 assertRequestValue('cookie-value', $request->cookieString('token'), 'Request should read cookie strings.');
@@ -38,6 +41,16 @@ assertRequestValue(
     ['wiki.site_name' => 'PressDo'],
     $request->postArray('settings'),
     'Request should expose string-keyed POST objects without using the superglobal.',
+);
+assertRequestValue(
+    [
+        'username' => 'alice',
+        'remember' => '1',
+        'json' => '{"ok":true}',
+        'settings' => ['wiki.site_name' => 'PressDo'],
+    ],
+    $request->postData(),
+    'Request should expose its normalized POST data to the view boundary.',
 );
 
 echo "Request tests passed.".PHP_EOL;

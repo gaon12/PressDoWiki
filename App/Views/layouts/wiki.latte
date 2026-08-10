@@ -48,7 +48,7 @@
             <img class="wiki-image" src="{$config['storage.host'].$wiki['page']['data']['file_endpoint']}" alt="{$title}" loading="lazy">
         </span>
     </span>
-    {htmlspecialchars_decode($wiki['page']['data']['document']['content'])|noescape}
+    {$wiki['page']['data']['document']['content']|noescape}
     <div class="popper">
         <div class="popper__arrow"></div>
         <div class="popper__inner"></div>

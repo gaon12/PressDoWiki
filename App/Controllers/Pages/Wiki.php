@@ -3,8 +3,10 @@ namespace PressDo\App\Controllers\Pages;
 
 use PressDo\App\Models\{Backlink,Document,Star,ACL as ACLModels,Member,Files,Search,History};
 use PressDo\App\Core\Controller;
+use PressDo\App\Core\Response;
 use PressDo\App\Controllers\ACL;
 use PressDo\App\Helpers\{Namespaces,Languages,DefaultConfig, Config};
+use PressDo\App\Http\WikiUrl;
 use PressDo\App\Services\Mark\MarkupLinks;
 
 class Wiki extends Controller
@@ -56,7 +58,7 @@ class Wiki extends Controller
         }
         
         $discussions = Document::getDocThread($uuid);
-        $rev_uuid = $_GET['uuid'] ?? null;
+        $rev_uuid = $this->request->queryOptionalString('uuid');
 
         
         $doc = Document::load($uuid, $rev_uuid);
@@ -144,8 +146,13 @@ class Wiki extends Controller
             [$lns, $lt] = self::parseTitle($redirect);
 
             // redirect only to valid link (document exists), without noredirect and from
-            if (Document::getUuid($lns, $lt) !== false && $_GET['noredirect'] !== '1' && empty($_GET['from']))
-                header('Location: /w/'.$redirect.'?from='.$this->uri_data->title);
+            if (
+                Document::getUuid($lns, $lt) !== false
+                && $this->request->queryString('noredirect') !== '1'
+                && $this->request->queryOptionalString('from') === null
+            ) {
+                Response::redirect(WikiUrl::document($redirect, ['from' => $this->uri_data->title]));
+            }
         }
         
         $cat_documents = [];
@@ -186,7 +193,7 @@ class Wiki extends Controller
                 'namespace' => $namespace,
                 'title' => $title,
                 'forceShowNamespace' => self::forceShowNamespace($namespace, $title),
-                'content' => htmlspecialchars($content->html),
+                'content' => $content->html,
                 'categories' => $content->links->categories
             ],
             'category_documents' => $cat_documents,

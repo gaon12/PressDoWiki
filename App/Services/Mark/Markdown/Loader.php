@@ -1,14 +1,29 @@
 <?php
+
+declare(strict_types=1);
+
 namespace PressDo\App\Services\Mark\Markdown;
 
-require_once __DIR__.'/Parsedown.php';
+use League\CommonMark\GithubFlavoredMarkdownConverter;
 
-class Loader
+final class Loader
 {
+    /**
+     * @param array<string, mixed> $options Reserved for the shared loader API.
+     * @return array{html: string, categories: array<string, never>}
+     */
     public static function loadMarkUp(string $content, array $options): array
     {
-        $parsedown = new \Parsedown();
+        $converter = new GithubFlavoredMarkdownConverter([
+            // Wiki content is user-controlled. Preserve raw HTML as visible text
+            // and remove unsafe link targets instead of trusting either one.
+            'html_input' => 'escape',
+            'allow_unsafe_links' => false,
+        ]);
 
-        return ['html' => $parsedown->text($content), 'categories' => []];
+        return [
+            'html' => (string) $converter->convert($content),
+            'categories' => [],
+        ];
     }
 }

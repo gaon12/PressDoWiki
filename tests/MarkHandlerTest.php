@@ -23,9 +23,12 @@ function assertMarkValue(mixed $expected, mixed $actual, string $message): void
 }
 
 setMarkConfigValues(['wiki.mark' => 'Markdown']);
-$markdown = MarkHandler::load('**bold**', []);
+$markdown = MarkHandler::load("**bold**\n\n<script>alert(1)</script>\n\n[unsafe](javascript:alert(1))", []);
 assertMarkValue(true, str_contains($markdown->html, '<strong>bold</strong>'), 'Markdown loader should render through a namespaced Loader class.');
 assertMarkValue(false, $markdown->links->hasAny(), 'Markdown should receive empty normalized link metadata.');
+assertMarkValue(false, str_contains($markdown->html, '<script>'), 'Markdown should not preserve user-provided raw HTML.');
+assertMarkValue(true, str_contains($markdown->html, '&lt;script&gt;'), 'Markdown should keep escaped raw HTML visible.');
+assertMarkValue(false, str_contains($markdown->html, 'href="javascript:'), 'Markdown should remove unsafe link targets.');
 
 setMarkConfigValues(['wiki.mark' => 'MediaWiki']);
 $mediaWiki = MarkHandler::load("== Heading ==\n\nBody", []);

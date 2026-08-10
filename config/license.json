@@ -24,12 +24,12 @@
         "license_url": "https://github.com/yidas/php-socket-mailer/blob/master/LICENSE"
     },
     {
-        "name": "Parsedown",
-        "url": "https://github.com/erusev/parsedown",
-        "author": "Emanuil Rusev",
-        "author_url": "https://github.com/yidas",
-        "license_name": "MIT",
-        "license_url": "https://github.com/erusev/parsedown/blob/master/LICENSE.txt"
+        "name": "league/commonmark",
+        "url": "https://github.com/thephpleague/commonmark",
+        "author": "The League of Extraordinary Packages",
+        "author_url": "https://github.com/thephpleague",
+        "license_name": "BSD-3-Clause",
+        "license_url": "https://github.com/thephpleague/commonmark/blob/2.9/LICENSE"
     },
     {
         "name": "jBBCode",

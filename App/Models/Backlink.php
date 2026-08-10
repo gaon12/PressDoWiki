@@ -1,23 +1,27 @@
 <?php
+
+declare(strict_types=1);
+
 namespace PressDo\App\Models;
 
-use \PDO as PDO;
-use \PDOException as PDOException;
-use \ErrorException as ErrorException;
+use ErrorException;
+use PDO;
+use PDOException;
 use PressDo\App\Core\Controller;
+use PressDo\App\Services\Backlink\BacklinkTarget;
+use PressDo\App\Services\Backlink\BacklinkType;
+use PressDo\App\Services\Backlink\PdoBacklinkIndex;
+use PressDo\App\Services\Mark\MarkupLinks;
+use UnexpectedValueException;
 
-class Backlink extends \PressDo\App\Core\Model
+final class Backlink extends \PressDo\App\Core\Model
 {
     /**
      * Get backlinks of document
-     * @param string $namespace
-     * @param string $title
-     * @param string $target_ns
-     * @param mixed $type
-     * @throws \ErrorException
-     * @return array
+     *
+     * @return array<string, list<array{title: string, namespace: string, type: string, total_count: int|string}>>
      */
-    public static function get(string $namespace, string $title, string $target_ns, ?string $type=null): array
+    public static function get(string $namespace, string $title, string $target_ns, ?string $type = null): array
     {
         $db = self::db();
         $params = [$namespace, $title, $target_ns];
@@ -25,99 +29,139 @@ class Backlink extends \PressDo\App\Core\Model
         if ($type !== null) {
             $typstr = ' AND links.type=?';
             array_push($params, $type);
-        } else
+        } else {
             $typstr = '';
+        }
 
         try {
-            $c = $db->prepare("SELECT document.title as `title`, document.namespace as `namespace`, links.type as `type`, COUNT(*) OVER() AS total_count FROM `links`,`document` WHERE links.from_uuid = document.uuid AND links.namespace=? AND links.title=? AND document.namespace=?".$typstr." LIMIT 100");
+            $c = $db->prepare('SELECT document.title as `title`, document.namespace as `namespace`, links.type as `type`, COUNT(*) OVER() AS total_count FROM `links`,`document` WHERE links.from_uuid = document.uuid AND links.namespace=? AND links.title=? AND document.namespace=?' . $typstr . ' LIMIT 100');
             $c->execute($params);
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 역링크 조회 중 오류 발생');
+            throw new ErrorException($err->getMessage() . ': 역링크 조회 중 오류 발생');
         }
-        
-        return $c->fetchAll(PDO::FETCH_GROUP);
+        $grouped = [];
+        foreach ($c->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $normalized = self::backlinkRow($row);
+            $grouped[$normalized['title']][] = $normalized;
+        }
+
+        return $grouped;
     }
 
     /**
      * Count backlinks in each namespace
-     * @param string $namespace
-     * @param string $title
-     * @throws \ErrorException
-     * @return array
+     * @return list<array{namespace: string, cnt: int|string}>
      */
     public static function count(string $namespace, string $title): array
     {
         $db = self::db();
 
         try {
-            $c = $db->prepare("SELECT document.namespace as `namespace`, COUNT(from_uuid) as cnt FROM `links`,`document` WHERE links.from_uuid = document.uuid AND links.namespace=? AND links.title=? GROUP BY document.namespace");
+            $c = $db->prepare('SELECT document.namespace as `namespace`, COUNT(from_uuid) as cnt FROM `links`,`document` WHERE links.from_uuid = document.uuid AND links.namespace=? AND links.title=? GROUP BY document.namespace');
             $c->execute([$namespace, $title]);
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 역링크 개수 확인 중 오류 발생');
+            throw new ErrorException($err->getMessage() . ': 역링크 개수 확인 중 오류 발생');
         }
-        
-        return $c->fetchAll(PDO::FETCH_ASSOC);
+        $counts = [];
+        foreach ($c->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if (!is_array($row)) {
+                throw new UnexpectedValueException('A backlink count row must be an array.');
+            }
+
+            $namespace = $row['namespace'] ?? null;
+            $count = $row['cnt'] ?? null;
+            if (!is_string($namespace) || (!is_int($count) && !is_string($count))) {
+                throw new UnexpectedValueException('A backlink count row contains invalid values.');
+            }
+
+            $counts[] = ['namespace' => $namespace, 'cnt' => $count];
+        }
+
+        return $counts;
     }
 
     /**
-     * Update backlinks
-     * @param string $uuid
-     * @param array $links
-     * @throws \ErrorException
-     * @return array
+     * Replace the complete backlink index produced by the markup engine.
+     *
+     * Empty link collections are intentional: they remove relationships left
+     * behind by an older revision of the document.
      */
-    public static function update(string $uuid, array $links)
+    public static function update(string $uuid, MarkupLinks $links): void
     {
-        $db = self::db();
-        $uuid = self::uuid2bin($uuid);
-        $addvals = [];
-        $parvals = [];
-        if(count($links['redirect']) > 0){
-            // 리다이렉트 문서 (링크가 항상 하나임)
-            array_push($addvals, '(?,?,?,?)');
-            [$namespace, $title] = Controller::parseTitle($links['redirect'][0]);
-            array_push($parvals, $namespace, $title, $uuid, 'redirect');
-        }else{
-            foreach($links['link'] as $l){
-                array_push($addvals, '(?,?,?,?)');
-                [$namespace, $title] = Controller::parseTitle($l);
-                array_push($parvals, $namespace, $title, $uuid, 'link');
-            }
-            foreach($links['file'] as $l){
-                array_push($addvals, '(?,?,?,?)');
-                [$namespace, $title] = Controller::parseTitle($l);
-                array_push($parvals, $namespace, $title, $uuid, 'file');
-            }
-            foreach($links['include'] as $l){
-                array_push($addvals, '(?,?,?,?)');
-                [$namespace, $title] = Controller::parseTitle($l);
-                array_push($parvals, $namespace, $title, $uuid, 'include');
-            }
-            foreach(array_keys($links['category']) as $l){
-                array_push($addvals, '(?,?,?,?)');
-                array_push($parvals, '분류', $l, $uuid, 'category');
-            }
-        }
+        $binaryUuid = self::uuid2bin($uuid);
+
         try {
-            $d = $db->prepare("DELETE FROM `links` WHERE `from_uuid`=?");
-            $d->execute([$uuid]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 기존 순링크 삭제 중 오류 발생');
+            (new PdoBacklinkIndex(self::db()))->replace($binaryUuid, self::targets($links));
+        } catch (PDOException $error) {
+            throw new ErrorException($error->getMessage() . ': 링크 갱신 중 오류 발생', previous: $error);
         }
-        if ($addvals !== []) {
-            try {
-                $d = $db->prepare("INSERT INTO `links`(namespace, title, from_uuid, type) VALUES".implode(', ', $addvals));
-                $d->execute($parvals);
-            } catch (PDOException $err) {
-                throw new ErrorException($err->getMessage().': 순링크 갱신 중 오류 발생');
-            }
+    }
+
+    /** @return list<BacklinkTarget> */
+    private static function targets(MarkupLinks $links): array
+    {
+        $redirect = $links->firstRedirect();
+        if ($redirect !== null) {
+            return [self::target($redirect, BacklinkType::Redirect)];
         }
-        try {
-            $d = $db->prepare("UPDATE `document` SET `backlink_updated`='1' WHERE `uuid`=?");
-            $d->execute([$uuid]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 링크 갱신 반영 중 오류 발생');
+
+        $targets = [];
+        foreach ($links->documents as $title) {
+            $targets[] = self::target($title, BacklinkType::Link);
         }
-        return $d->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($links->files as $title) {
+            $targets[] = self::target($title, BacklinkType::File);
+        }
+        foreach ($links->includes as $title) {
+            $targets[] = self::target($title, BacklinkType::Include);
+        }
+        foreach (array_keys($links->categories) as $title) {
+            $targets[] = new BacklinkTarget('분류', $title, BacklinkType::Category);
+        }
+
+        return $targets;
+    }
+
+    private static function target(string $fullTitle, BacklinkType $type): BacklinkTarget
+    {
+        $parts = Controller::parseTitle($fullTitle);
+        $namespace = $parts[0] ?? null;
+        $title = $parts[1] ?? null;
+        if (!is_string($namespace) || !is_string($title)) {
+            throw new UnexpectedValueException('A parsed document title must contain a namespace and title.');
+        }
+
+        return new BacklinkTarget($namespace, $title, $type);
+    }
+
+    /**
+     * @param mixed $row Database-provided row.
+     * @return array{title: string, namespace: string, type: string, total_count: int|string}
+     */
+    private static function backlinkRow(mixed $row): array
+    {
+        if (!is_array($row)) {
+            throw new UnexpectedValueException('A backlink row must be an array.');
+        }
+
+        $title = $row['title'] ?? null;
+        $namespace = $row['namespace'] ?? null;
+        $type = $row['type'] ?? null;
+        $totalCount = $row['total_count'] ?? null;
+        if (
+            !is_string($title)
+            || !is_string($namespace)
+            || !is_string($type)
+            || (!is_int($totalCount) && !is_string($totalCount))
+        ) {
+            throw new UnexpectedValueException('A backlink row contains invalid values.');
+        }
+
+        return [
+            'title' => $title,
+            'namespace' => $namespace,
+            'type' => $type,
+            'total_count' => $totalCount,
+        ];
     }
 }

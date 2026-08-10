@@ -13,8 +13,7 @@ class Wiki extends Controller
 {
     public function updateLinktable(string $uuid, MarkupLinks $links): void
     {
-        if ($links->hasAny())
-            Backlink::update($uuid, $links->toLegacyArray());
+        Backlink::update($uuid, $links);
     }
 
     public function makeData(): array

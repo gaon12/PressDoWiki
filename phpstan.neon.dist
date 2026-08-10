@@ -2,6 +2,7 @@ parameters:
     level: max
     paths:
         - App/Admin/Settings
+        - App/Services/Backlink
         - App/Controllers/Pages/admin/Config.php
         - App/Core/Request.php
         - App/Core/Response.php
@@ -17,6 +18,7 @@ parameters:
         - App/Services/Mark/Markdown/Loader.php
         - App/Services/Mark/MarkupLinks.php
         - App/Services/Mark/MarkupResult.php
+        - App/Models/Backlink.php
         - App/Services/Mark/NamuMark
         - App/Shared/Rendering
         - App/Update

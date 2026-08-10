@@ -67,29 +67,6 @@ final readonly class MarkupLinks
         return $this->redirects[0] ?? null;
     }
 
-    /**
-     * Adapter for the legacy backlink model. Remove this after the model accepts
-     * MarkupLinks directly.
-     *
-     * @return array{
-     *     link: list<string>,
-     *     redirect: list<string>,
-     *     include: list<string>,
-     *     file: list<string>,
-     *     category: array<string, list<string>>
-     * }
-     */
-    public function toLegacyArray(): array
-    {
-        return [
-            'link' => $this->documents,
-            'redirect' => $this->redirects,
-            'include' => $this->includes,
-            'file' => $this->files,
-            'category' => $this->categories,
-        ];
-    }
-
     /** @return list<string> */
     private static function stringList(mixed $value, string $field): array
     {

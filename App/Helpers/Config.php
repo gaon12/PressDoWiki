@@ -1,10 +1,11 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
-class Config 
+class Config
 {
     private static array $Configs = [];
-    
+
     private static $db = null;
 
     /**
@@ -13,11 +14,12 @@ class Config
      */
     protected static function db(): \PDO
     {
-        if(!self::$db){
+        if (!self::$db) {
             self::$db = Database::getInstance();
             return self::$db;
-        }else
+        } else {
             return self::$db;
+        }
     }
 
     /**
@@ -27,14 +29,15 @@ class Config
     {
         if (empty(static::$Configs)) {
             $instance = self::db();
-            $d = $instance->query("SELECT `key`, `value` FROM config");
+            $d = $instance->query('SELECT `key`, `value` FROM config');
             $cset = array_merge(DefaultConfig::all(), $d->fetchAll(\PDO::FETCH_GROUP | \PDO::FETCH_COLUMN));
             $carray = [];
             foreach ($cset as $k => $c) {
-                if (is_countable($c) && count($c) === 1)
+                if (is_countable($c) && count($c) === 1) {
                     $carray[$k] = $c[0];
-                else
+                } else {
                     $carray[$k] = $c;
+                }
             }
             static::$Configs = $carray;
         }
@@ -43,12 +46,13 @@ class Config
     /**
      * get config value
      */
-    public static function get(string $key, string $implodeDelimiter=''): mixed
+    public static function get(string $key, string $implodeDelimiter = ''): mixed
     {
         self::init();
         $res = static::$Configs[$key];
-        if (!empty($implodeDelimiter) && is_countable($res))
+        if (!empty($implodeDelimiter) && is_countable($res)) {
             $res = implode($implodeDelimiter, $res);
+        }
         return $res;
     }
 
@@ -60,30 +64,30 @@ class Config
         self::init();
         return static::$Configs;
     }
-    
+
     public static function getPreference(): array
     {
         $instance = self::db();
-        $d = $instance->query("SELECT `key`, `value` FROM config");
+        $d = $instance->query('SELECT `key`, `value` FROM config');
         return $d->fetchAll(\PDO::FETCH_GROUP | \PDO::FETCH_COLUMN);
     }
-    
+
     public static function set(string $key, string $name): void
     {
         $db = self::db();
-        $d = $db->prepare("INSERT INTO config (`key`, `value`) VALUES (?, ?)");
+        $d = $db->prepare('INSERT INTO config (`key`, `value`) VALUES (?, ?)');
         $d->execute([$key, $name]);
         static::$Configs = [];
     }
-    
+
     public static function delete(string $key, string $name): void
     {
         $db = self::db();
-        $d = $db->prepare("DELETE FROM config WHERE `key`=? AND `value`=?");
+        $d = $db->prepare('DELETE FROM config WHERE `key`=? AND `value`=?');
         $d->execute([$key, $name]);
         static::$Configs = [];
     }
-    
+
     public static function setBulk(array $data): void
     {
         if (count($data) % 2 !== 0) {
@@ -95,10 +99,10 @@ class Config
 
         try {
             $db->beginTransaction();
-            $db->query("DELETE FROM config");
+            $db->query('DELETE FROM config');
 
             if (!empty($data)) {
-                $d = $db->prepare("INSERT INTO config (`key`, `value`) VALUES ".$str);
+                $d = $db->prepare('INSERT INTO config (`key`, `value`) VALUES ' . $str);
                 $d->execute($data);
             }
 

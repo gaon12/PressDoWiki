@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 class SqlDialect
@@ -26,11 +27,11 @@ class SqlDialect
     public static function caseSensitiveEquals(string $column): string
     {
         if (self::isMysql()) {
-            return 'BINARY '.$column.' = ?';
+            return 'BINARY ' . $column . ' = ?';
         }
 
         if (self::isPostgresql()) {
-            return self::quoteIdentifier($column).' = ?';
+            return self::quoteIdentifier($column) . ' = ?';
         }
 
         return "$column = ? COLLATE BINARY";
@@ -41,7 +42,7 @@ class SqlDialect
         $column ??= self::quoteIdentifier('until');
         $column = self::normalizeIdentifiers($column);
 
-        return "($column >= ".time()." OR $column = 0)";
+        return "($column >= " . time() . " OR $column = 0)";
     }
 
     public static function limit(int $offset, int $count): string
@@ -72,10 +73,10 @@ class SqlDialect
         $identifier = trim($identifier, "`\" \t\n\r\0\x0B");
 
         if (self::isPostgresql()) {
-            return '"'.str_replace('"', '""', $identifier).'"';
+            return '"' . str_replace('"', '""', $identifier) . '"';
         }
 
-        return '`'.str_replace('`', '``', $identifier).'`';
+        return '`' . str_replace('`', '``', $identifier) . '`';
     }
 
     public static function normalizeIdentifiers(string $sql): string
@@ -89,24 +90,24 @@ class SqlDialect
 
     public static function castText(string $expression): string
     {
-        return self::isPostgresql() ? 'CAST('.$expression.' AS text)' : 'CAST('.$expression.' AS TEXT)';
+        return self::isPostgresql() ? 'CAST(' . $expression . ' AS text)' : 'CAST(' . $expression . ' AS TEXT)';
     }
 
     public static function binaryHex(string $expression): string
     {
         if (self::isPostgresql()) {
-            return 'encode('.$expression.", 'hex')";
+            return 'encode(' . $expression . ", 'hex')";
         }
 
-        return 'HEX('.$expression.')';
+        return 'HEX(' . $expression . ')';
     }
 
     public static function blockHistoryTextCondition(): string
     {
         if (self::isMysql()) {
-            return "((INET_NTOA(CONV(HEX(b.`target_ip`), 16, 10)) LIKE ? OR INET6_NTOA(b.`target_ip`) LIKE ?) AND b.`mask` LIKE ? OR b.`comment` LIKE ? OR b.`id` LIKE ?)";
+            return '((INET_NTOA(CONV(HEX(b.`target_ip`), 16, 10)) LIKE ? OR INET6_NTOA(b.`target_ip`) LIKE ?) AND b.`mask` LIKE ? OR b.`comment` LIKE ? OR b.`id` LIKE ?)';
         }
 
-        return '(LOWER('.self::binaryHex('b.`target_ip`').') LIKE ? AND '.self::castText('b.`mask`').' LIKE ? OR b.`comment` LIKE ? OR '.self::castText('b.`id`').' LIKE ?)';
+        return '(LOWER(' . self::binaryHex('b.`target_ip`') . ') LIKE ? AND ' . self::castText('b.`mask`') . ' LIKE ? OR b.`comment` LIKE ? OR ' . self::castText('b.`id`') . ' LIKE ?)';
     }
 }

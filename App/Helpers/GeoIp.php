@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 use GeoIp2\Database\Reader;
@@ -14,7 +15,7 @@ class GeoIp
      */
     private static function init(): void
     {
-        if(empty(static::$geoip)) {
+        if (empty(static::$geoip)) {
             static::$geoip = new Reader(Config::get('wiki.geoip2_database'));
         }
     }
@@ -38,8 +39,9 @@ class GeoIp
      */
     public static function get(string $ip): string
     {
-        if(inet_pton($ip) === false)
+        if (inet_pton($ip) === false) {
             throw new \ErrorException('Must provide a valid IP address to a GeoIP function.');
+        }
 
         if (function_exists('geoip_country_code_by_name')) {
             // php-geoip function

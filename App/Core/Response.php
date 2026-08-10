@@ -1,11 +1,12 @@
 <?php
+
 namespace PressDo\App\Core;
 
 final class Response
 {
     public static function redirect(string $location, int $status = 302): never
     {
-        header('Location: '.$location, true, $status);
+        header('Location: ' . $location, true, $status);
         exit;
     }
 

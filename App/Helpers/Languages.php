@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 class Languages
@@ -10,8 +11,8 @@ class Languages
      */
     private static function init()
     {
-        if(empty(static::$Languages)) {
-            static::$Languages = json_decode(file_get_contents('../config/language/'.DefaultConfig::get('wiki.language').'/string.json'), true);
+        if (empty(static::$Languages)) {
+            static::$Languages = json_decode(file_get_contents('../config/language/' . DefaultConfig::get('wiki.language') . '/string.json'), true);
         }
     }
 

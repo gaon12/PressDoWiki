@@ -1,44 +1,49 @@
 <?php
+
 namespace PressDo\App\Core;
 
+use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
 use PressDo\App\Models\Member;
-use PressDo\App\Helpers\{Config,Languages,Namespaces,DefaultConfig};
 use PressDo\App\Services\Mark\MarkHandler;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
-use Symfony\Component\Mailer\{Transport, Mailer};
-use Symfony\Component\Mime\Crypto\SMimeSigner;
-use Symfony\Component\Mime\{Email, Address};
 use SVG\SVG;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\{Mailer, Transport};
+use Symfony\Component\Mime\{Address, Email};
+use Symfony\Component\Mime\Crypto\SMimeSigner;
 
 class Controller
 {
     public object $uri_data;
 
     public array $error;
-    public array $session, $api_config = [], $array, $dataset;
+    public array $session;
+    public array $api_config = [];
+    public array $array;
+    public array $dataset;
     public Request $request;
-    public $page, $alert;
+    public $page;
+    public $alert;
 
     public function __construct()
     {
         $this->request = Request::fromGlobals();
 
-        if (!empty($_SESSION))
+        if (!empty($_SESSION)) {
             $this->session = $_SESSION;
-        else {
+        } else {
             $this->session = [
                 'menus' => [],
                 'member' => null,
                 'ip' => self::getIPAddr(),
-                'ua' => $this->request->serverString('HTTP_USER_AGENT')
+                'ua' => $this->request->serverString('HTTP_USER_AGENT'),
             ];
         }
-        
+
         if (empty($this->session['member'])) {
             if ($this->request->hasCookie('szczecin')) {
                 // auto-login
                 $uuid = Member::checkCookie('szczecin', $this->request->cookieString('szczecin'));
-                
+
                 if ($uuid !== null) {
                     // valid cookie
                     $l = Member::login($uuid, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
@@ -51,17 +56,18 @@ class Controller
             } else {
                 // no-logincookie
                 $ipuuid = Member::getIpUuid($this->session['ip'], true);
-                if ($ipuuid !== null)
+                if ($ipuuid !== null) {
                     $this->session['uuid'] = $ipuuid;
+                }
             }
         }
 
         if (Config::get('wiki.use_captcha')) {
-            $captchaClassName = 'PressDo\App\Helpers\Captcha\\'.DefaultConfig::get('captcha.type');
+            $captchaClassName = 'PressDo\App\Helpers\Captcha\\' . DefaultConfig::get('captcha.type');
             $this->api_config = [
                 'captcha_api_endpoint' => $captchaClassName::API_ENDPOINT,
                 'captcha_class_name' => $captchaClassName::CLASS_NAME,
-                'captcha_token_name' => $captchaClassName::TOKEN_NAME
+                'captcha_token_name' => $captchaClassName::TOKEN_NAME,
             ];
         }
     }
@@ -74,12 +80,13 @@ class Controller
             'aclgroup' => '/aclgroup',
             'grant' => '/admin/grant',
             'login_history' => '/admin/login_history',
-            'batch_revert' => 'batch_revert'
+            'batch_revert' => 'batch_revert',
         ];
         $sps = Member::specialPerms($uuid);
         foreach ($SP as $prm) {
-            if (in_array($prm, $sps))
+            if (in_array($prm, $sps)) {
                 array_push($menus, ['l' => $link[$prm], 't' => $prm]);
+            }
         }
 
         return [
@@ -90,22 +97,22 @@ class Controller
             'member' => [
                 'user_document_discuss' => null,
                 'username' => $username,
-                'gravatar_url' => '//www.gravatar.com/avatar/'.md5($email).'?d=retro',
+                'gravatar_url' => '//www.gravatar.com/avatar/' . md5($email) . '?d=retro',
                 'admin' => in_array('admin', $sps),
-                'settings' => ['skin' => $skin]
-            ]
+                'settings' => ['skin' => $skin],
+            ],
         ];
     }
 
     /**
      * Render document content with syntax
-     * 
+     *
      * @param string $content   document content
      * @param string $mark      mark language
      * @param array $options    renderer options
      * @return array            array(HTML, categories)
      */
-    protected static function readSyntax(string $content, array $options=[]): array|string
+    protected static function readSyntax(string $content, array $options = []): array|string
     {
         return MarkHandler::load($content, $options);
     }
@@ -120,11 +127,11 @@ class Controller
         $View->renderInit();
 
         $license = $this->dataset['page']['view_name'] == 'License' ? json_decode(file_get_contents('../config/license.json'), true) : null;
-        
+
         $paramSet = [
-            'wiki' => $this->dataset, 
+            'wiki' => $this->dataset,
             'config' => Config::all(),
-            'namespace' => Namespaces::all(), 
+            'namespace' => Namespaces::all(),
             'lang' => Languages::all(),
             'skinConfig' => $View->skin->config,
             'skinName' => $View->skin->name,
@@ -132,18 +139,20 @@ class Controller
             'request_uri' => $this->request->serverString('REQUEST_URI'),
             'post' => $_POST,
             'license' => $license,
-            'api_config' => $this->api_config
+            'api_config' => $this->api_config,
         ];
 
-        if (isset($this->error))
+        if (isset($this->error)) {
             $paramSet['error'] = (array) $this->error;
-        else
+        } else {
             $paramSet['error'] = [];
+        }
 
-        if (isset($this->alert))
+        if (isset($this->alert)) {
             $paramSet['alert'] = (array) $this->alert;
-        else
+        } else {
             $paramSet['alert'] = [];
+        }
 
         $View->params = $paramSet;
         return $View->renderPage();
@@ -154,7 +163,7 @@ class Controller
         $this->dataset = (array) [
             //'local_config' => $local_config,
             'page' => $this->page,
-            'session' => $this->session
+            'session' => $this->session,
         ];
 
         if ($getPage) {
@@ -164,49 +173,52 @@ class Controller
 
     /**
      * Parse namespace and title in full title.
-     * 
+     *
      * @param string $title     Full title of document
      * @return array            array(Namespace, Title)
      */
     public static function parseTitle(string $title): array
     {
         $t = explode(':', $title);
-        
-        if (!in_array($t[0], Namespaces::all()) || count($t) === 1)
+
+        if (!in_array($t[0], Namespaces::all()) || count($t) === 1) {
             return [Namespaces::document(), $title];
-        else
+        } else {
             return [$t[0], implode(':', array_slice($t, 1))];
+        }
     }
 
     /**
      * Make a full title with namespace and title.
-     * 
+     *
      * @param string $namespace     raw namespace of document
      * @param string $title     title of document
      * @return string           formed title
      */
     public static function makeTitle(string $namespace, string $title): string
     {
-        if (self::forceShowNamespace($namespace, $title) === false)
+        if (self::forceShowNamespace($namespace, $title) === false) {
             return $title;
-        else 
-            return $namespace.':'.$title;
+        } else {
+            return $namespace . ':' . $title;
+        }
     }
 
     protected static function forceShowNamespace(string $namespace, string $title): bool|null
     {
         $e = explode(':', $title);
-        if (!in_array($e[0], Namespaces::all()) && $namespace == Namespaces::document())
+        if (!in_array($e[0], Namespaces::all()) && $namespace == Namespaces::document()) {
             return false;
-        else
+        } else {
             return null;
+        }
     }
 
     protected static function sendMail(string $recipient, string $title, string $content): bool
     {
         $mail = DefaultConfig::get('mail.smtp_password');
-        $dsn = 'smtp://'.DefaultConfig::get('mail.smtp_username').':'.DefaultConfig::get('mail.smtp_password').'@'
-            .DefaultConfig::get('mail.smtp_host').':'.DefaultConfig::get('mail.smtp_port');
+        $dsn = 'smtp://' . DefaultConfig::get('mail.smtp_username') . ':' . DefaultConfig::get('mail.smtp_password') . '@'
+            . DefaultConfig::get('mail.smtp_host') . ':' . DefaultConfig::get('mail.smtp_port');
         $mailer = new Mailer(Transport::fromDsn($dsn));
         $email = (new Email())
             ->from(new Address(DefaultConfig::get('mail.smtp_address'), Config::get('wiki.site_name_en')))
@@ -261,13 +273,15 @@ class Controller
 
     protected static function validateCaptcha(?string $token): bool
     {
-        if (!Config::get('wiki.use_captcha'))
+        if (!Config::get('wiki.use_captcha')) {
             return true;
+        }
 
-        if (empty($token))
+        if (empty($token)) {
             return false;
+        }
 
-        $captchaClassName = 'PressDo\App\Helpers\Captcha\\'.DefaultConfig::get('captcha.type');
+        $captchaClassName = 'PressDo\App\Helpers\Captcha\\' . DefaultConfig::get('captcha.type');
         return $captchaClassName::verify($token);
     }
 
@@ -276,7 +290,7 @@ class Controller
         return [
             'code' => $code,
             'message' => Languages::get('msg', $code) ?? $code,
-            'errbox' => true
+            'errbox' => true,
         ];
     }
 
@@ -287,7 +301,7 @@ class Controller
      * @param string $caption
      * @return string
      */
-    protected static function loadDiff(string $old, string $new, string $caption=''): string
+    protected static function loadDiff(string $old, string $new, string $caption = ''): string
     {
         require '../App/Helpers/Libraries/diff/Diff.php';
         require '../App/Helpers/Libraries/diff/Inline.php';
@@ -295,16 +309,17 @@ class Controller
         $a = explode("\n", $old);
         $b = explode("\n", $new);
 
-        if ($old === $new)
+        if ($old === $new) {
             return self::diffSame($a, $caption);
+        }
 
-        $options = array(
+        $options = [
             //'ignoreWhitespace' => true,
             //'ignoreCase' => true,
-        );
+        ];
 
-        $diff = new \Diff($a, $b, $options); 
-        $ren = new \Diff_Renderer_Html_Inline;
+        $diff = new \Diff($a, $b, $options);
+        $ren = new \Diff_Renderer_Html_Inline();
         $ren->caption = $caption;
         $ren->linecnt = [count($a),count($b)];
 
@@ -314,21 +329,21 @@ class Controller
     protected static function diffSame(array $lines, string $caption)
     {
         $html = '<table class="diff">'
-            .'<thead>'
-            .'<tr>'
-            .'<th></th>'
-            .'<th></th>'
-            .'<th class="diff">'.$caption.'</th>'
-            .'</tr>'
-            .'</thead>'
-            .'<tbody>';
+            . '<thead>'
+            . '<tr>'
+            . '<th></th>'
+            . '<th></th>'
+            . '<th class="diff">' . $caption . '</th>'
+            . '</tr>'
+            . '</thead>'
+            . '<tbody>';
         $len = count($lines);
 
         for ($i = 0; $i < $len; $i++) {
-            $html .= '<tr><th>'.$i.'</th><th>'.$i.'</th><td class="equal"><div>'.htmlspecialchars($lines[$i]).'</div></td></tr>';
+            $html .= '<tr><th>' . $i . '</th><th>' . $i . '</th><td class="equal"><div>' . htmlspecialchars($lines[$i]) . '</div></td></tr>';
         }
 
-		$html .= '</tbody></table>';
+        $html .= '</tbody></table>';
 
         return $html;
     }
@@ -341,7 +356,7 @@ class Controller
         return $_SERVER['REMOTE_ADDR'];
     }
 
-    public static function formatTime(int $sec): array  
+    public static function formatTime(int $sec): array
     {
         $week = floor($sec / 604800);
         $sec -= $week * 604800;
@@ -385,62 +400,79 @@ class Controller
      * @param string $add additional string included to generated one.
      * @return string   generated string
      */
-    protected static function rand(int $len=16, bool $u=false, string $add=''): string
+    protected static function rand(int $len = 16, bool $u = false, string $add = ''): string
     {
         $c = '0123456789abcdefghijklmnopqrstuvwxyz';
-        if ($u)
+        if ($u) {
             $c .= 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        if (strlen($add) > 0)
+        }
+        if (strlen($add) > 0) {
             $c .= $add;
-        
+        }
+
         $cl = strlen($c);
         $s = '';
-        for ($i=0; $i<$len; $i++) 
-            $s .= $c[random_int(0, $cl-1)];
-        
+        for ($i = 0; $i < $len; $i++) {
+            $s .= $c[random_int(0, $cl - 1)];
+        }
+
         return $s;
     }
 
     protected static function utf8_ord($c)
     {
         $len = strlen($c);
-        if ($len <= 0)
+        if ($len <= 0) {
             return false;
+        }
         $h = ord($c[0]);
-        if ($h <= 0x7F)
+        if ($h <= 0x7F) {
             return $h;
-        if ($h < 0xC2)
+        }
+        if ($h < 0xC2) {
             return false;
-        if ($h <= 0xDF && $len>1)
+        }
+        if ($h <= 0xDF && $len > 1) {
             return ($h & 0x1F) <<  6 | (ord($c[1]) & 0x3F);
-        if ($h <= 0xEF && $len>2)
-            return ($h & 0x0F) << 12 | (ord($c[1]) & 0x3F) <<  6 | (ord($c[2]) & 0x3F);		  
-        if ($h <= 0xF4 && $len>3)
+        }
+        if ($h <= 0xEF && $len > 2) {
+            return ($h & 0x0F) << 12 | (ord($c[1]) & 0x3F) <<  6 | (ord($c[2]) & 0x3F);
+        }
+        if ($h <= 0xF4 && $len > 3) {
             return ($h & 0x0F) << 18 | (ord($c[1]) & 0x3F) << 12 | (ord($c[2]) & 0x3F) << 6 | (ord($c[3]) & 0x3F);
+        }
         return false;
     }
 
-    protected static function utf8_chr($num) {
-        if ($num<128)
+    protected static function utf8_chr($num)
+    {
+        if ($num < 128) {
             return chr($num);
-        if ($num<2048)
-            return chr(($num>>6)+192).chr(($num&63)+128);
-        if ($num<65536)
-            return chr(($num>>12)+224).chr((($num>>6)&63)+128).chr(($num&63)+128);
-        if ($num<2097152)
-            return chr(($num>>18)+240).chr((($num>>12)&63)+128).chr((($num>>6)&63)+128).chr(($num&63)+128);
+        }
+        if ($num < 2048) {
+            return chr(($num >> 6) + 192) . chr(($num & 63) + 128);
+        }
+        if ($num < 65536) {
+            return chr(($num >> 12) + 224) . chr((($num >> 6) & 63) + 128) . chr(($num & 63) + 128);
+        }
+        if ($num < 2097152) {
+            return chr(($num >> 18) + 240) . chr((($num >> 12) & 63) + 128) . chr((($num >> 6) & 63) + 128) . chr(($num & 63) + 128);
+        }
         return false;
-     }
-    
+    }
+
     protected static function is_hangeul(string $c)
     {
         $o = self::utf8_ord($c);
-        if (0x1100<=$o && $o<=0x11FF )
+        if (0x1100 <= $o && $o <= 0x11FF) {
             return true;
-        if (0x3130<=$o && $o<=0x318F )
+        }
+        if (0x3130 <= $o && $o <= 0x318F) {
             return true;
-        if (0xAC00<=$o && $o<=0xD7A3 )
+        }
+        if (0xAC00 <= $o && $o <= 0xD7A3) {
             return true;
+        }
         return false;
     }
 
@@ -491,7 +523,7 @@ class Controller
             'domain' => Config::get('wiki.domain'),
             'secure' => true,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => 'Lax',
         ];
     }
 }

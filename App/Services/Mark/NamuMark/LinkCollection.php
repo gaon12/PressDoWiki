@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PressDo\App\Services\Mark\NamuMark;
 
+use RuntimeException;
+
 /**
  * Collects document relationships while markup is rendered.
  *
@@ -13,6 +15,8 @@ namespace PressDo\App\Services\Mark\NamuMark;
  */
 final class LinkCollection
 {
+    private const MAX_RELATIONSHIPS = 10_000;
+
     /**
      * @var array{
      *     link: list<string>,
@@ -30,16 +34,27 @@ final class LinkCollection
         'category' => [],
     ];
 
+    /** @var array<string, true> */
+    private array $seenDocuments = [];
+
+    private int $relationshipCount = 0;
+
     public function addLink(string $document): void
     {
-        if (!in_array($document, $this->links['link'], true)) {
-            $this->links['link'][] = $document;
+        $indexKey = "document\0" . $document;
+        if (isset($this->seenDocuments[$indexKey])) {
+            return;
         }
+
+        $this->reserveRelationship();
+        $this->seenDocuments[$indexKey] = true;
+        $this->links['link'][] = $document;
     }
 
     public function addRedirect(string $document): void
     {
         if ($this->links['redirect'] === []) {
+            $this->reserveRelationship();
             $this->links['redirect'][] = $document;
         }
     }
@@ -47,6 +62,7 @@ final class LinkCollection
     public function addCategory(string $category): void
     {
         if (!array_key_exists($category, $this->links['category'])) {
+            $this->reserveRelationship();
             $this->links['category'][$category] = [];
         }
     }
@@ -63,5 +79,14 @@ final class LinkCollection
     public function all(): array
     {
         return $this->links;
+    }
+
+    private function reserveRelationship(): void
+    {
+        if ($this->relationshipCount >= self::MAX_RELATIONSHIPS) {
+            throw new RuntimeException('NamuMark documents cannot contain more than 10,000 unique relationships.');
+        }
+
+        ++$this->relationshipCount;
     }
 }

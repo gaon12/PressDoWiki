@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PressDo\App\Services\Uploaders;
 
+use InvalidArgumentException;
 use PressDo\App\Core\ProjectPaths;
 
 /** Filesystem-backed object storage rooted below the public files directory. */
@@ -69,6 +70,46 @@ final readonly class Local implements ObjectStorageInterface
     public function exists(ObjectKey $key): bool
     {
         return is_file($this->target($key, false));
+    }
+
+    public function listObjects(?ObjectKey $after, int $limit): ObjectPage
+    {
+        if ($limit < 1 || $limit > 100) {
+            throw new InvalidArgumentException('Object inventory limits must be between 1 and 100.');
+        }
+
+        $items = [];
+        $directories = array_filter(scandir($this->baseDirectory) ?: [], function (string $name): bool {
+            return preg_match('/\A[a-f0-9]{2}\z/D', $name) === 1
+                && is_dir($this->baseDirectory . DIRECTORY_SEPARATOR . $name);
+        });
+        sort($directories, SORT_STRING);
+
+        foreach ($directories as $directory) {
+            $path = $this->baseDirectory . DIRECTORY_SEPARATOR . $directory;
+            $filenames = array_filter(scandir($path) ?: [], fn(string $name): bool => is_file($path . DIRECTORY_SEPARATOR . $name));
+            sort($filenames, SORT_STRING);
+            foreach ($filenames as $filename) {
+                $key = new ObjectKey($directory . '/' . $filename);
+                if ($after !== null && strcmp($key->value, $after->value) <= 0) {
+                    continue;
+                }
+                $objectPath = $path . DIRECTORY_SEPARATOR . $filename;
+                $modified = filemtime($objectPath);
+                $size = filesize($objectPath);
+                if ($modified === false || $size === false) {
+                    throw new StorageException("Local object metadata could not be read: {$key->value}");
+                }
+                $items[] = new ObjectInfo($key, $modified, $size);
+                if (count($items) > $limit) {
+                    $nextCursor = $items[$limit - 1]->key;
+
+                    return new ObjectPage(array_slice($items, 0, $limit), $nextCursor);
+                }
+            }
+        }
+
+        return new ObjectPage($items, null);
     }
 
     public function delete(ObjectKey $key): void

@@ -8,6 +8,8 @@ use Aws\Credentials\Credentials;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
 use Aws\S3\S3ClientInterface;
+use DateTimeInterface;
+use InvalidArgumentException;
 use PressDo\App\Helpers\DefaultConfig;
 use Throwable;
 
@@ -94,6 +96,55 @@ final readonly class S3 implements ObjectStorageInterface
             throw new StorageException('The S3 object existence check failed.', previous: $error);
         } catch (Throwable $error) {
             throw new StorageException('The S3 object existence check failed.', previous: $error);
+        }
+    }
+
+    public function listObjects(?ObjectKey $after, int $limit): ObjectPage
+    {
+        if ($limit < 1 || $limit > 100) {
+            throw new InvalidArgumentException('Object inventory limits must be between 1 and 100.');
+        }
+
+        try {
+            $arguments = ['Bucket' => $this->bucket, 'MaxKeys' => $limit];
+            if ($after !== null) {
+                $arguments['StartAfter'] = $after->value;
+            }
+            $result = $this->client->listObjectsV2($arguments);
+            $contents = $result->get('Contents');
+            $items = [];
+            if (is_array($contents)) {
+                foreach ($contents as $content) {
+                    if (!is_array($content)) {
+                        continue;
+                    }
+                    $keyValue = $content['Key'] ?? null;
+                    $modifiedValue = $content['LastModified'] ?? null;
+                    $size = $content['Size'] ?? null;
+                    if (!is_string($keyValue) || (!is_int($size) && !is_string($size))) {
+                        continue;
+                    }
+                    try {
+                        $key = new ObjectKey($keyValue);
+                    } catch (InvalidArgumentException) {
+                        continue;
+                    }
+                    $modified = $modifiedValue instanceof DateTimeInterface
+                        ? $modifiedValue->getTimestamp()
+                        : (is_string($modifiedValue) ? strtotime($modifiedValue) : false);
+                    if ($modified === false) {
+                        continue;
+                    }
+                    $items[] = new ObjectInfo($key, $modified, (int) $size);
+                }
+            }
+
+            $truncated = $result->get('IsTruncated') === true;
+            $nextCursor = $truncated && $items !== [] ? $items[array_key_last($items)]->key : null;
+
+            return new ObjectPage($items, $nextCursor);
+        } catch (Throwable $error) {
+            throw new StorageException('The S3 object inventory could not be listed.', previous: $error);
         }
     }
 

@@ -50,12 +50,23 @@ $target = $testRoot . DIRECTORY_SEPARATOR . 'ab' . DIRECTORY_SEPARATOR . str_rep
 if (file_get_contents($target) !== 'first object') {
     failObjectStorageTest('The local object should contain the source bytes.');
 }
+$secondKey = new ObjectKey('ac/' . str_repeat('d', 64) . '.png');
+$local->store($secondKey, $source);
+$firstPage = $local->listObjects(null, 1);
+if (count($firstPage->items) !== 1 || $firstPage->items[0]->key->value !== $key->value || $firstPage->nextCursor?->value !== $key->value) {
+    failObjectStorageTest('Local inventories should return stable lexicographic cursor pages.');
+}
+$secondPage = $local->listObjects($firstPage->nextCursor, 1);
+if (count($secondPage->items) !== 1 || $secondPage->items[0]->key->value !== $secondKey->value || $secondPage->nextCursor !== null) {
+    failObjectStorageTest('Local inventory cursors should continue after the previous key.');
+}
 file_put_contents($source, 'replacement');
 $second = $local->store($key, $source);
 if ($second->created || file_get_contents($target) !== 'first object') {
     failObjectStorageTest('A repeated local write must not overwrite the existing object.');
 }
 $local->delete($key);
+$local->delete($secondKey);
 $local->delete($key);
 if (file_exists($target)) {
     failObjectStorageTest('Local object deletion should be idempotent.');
@@ -65,6 +76,7 @@ if ($local->exists($key)) {
 }
 unlink($source);
 rmdir(dirname($target));
+rmdir($testRoot . DIRECTORY_SEPARATOR . 'ac');
 rmdir($testRoot);
 
 try {
@@ -113,6 +125,31 @@ $deleteStorage = new S3($deleteClient, 'test-bucket');
 $deleteStorage->delete($key);
 if (lastMockCommand($deleteHandler)->getName() !== 'DeleteObject') {
     failObjectStorageTest('S3 compensation should issue DeleteObject.');
+}
+$listHandler = new MockHandler([new Result([
+    'Contents' => [[
+        'Key' => $key->value,
+        'LastModified' => new DateTimeImmutable('@1700000000'),
+        'Size' => 9,
+    ]],
+    'IsTruncated' => true,
+])]);
+$listClient = new S3Client([
+    'version' => 'latest',
+    'region' => 'ap-northeast-2',
+    'credentials' => false,
+    'handler' => $listHandler,
+]);
+$listStorage = new S3($listClient, 'test-bucket');
+$objectPage = $listStorage->listObjects(new ObjectKey('aa/' . str_repeat('0', 64) . '.png'), 1);
+$listCommand = lastMockCommand($listHandler);
+if (
+    $listCommand->getName() !== 'ListObjectsV2'
+    || $listCommand['MaxKeys'] !== 1
+    || $listCommand['StartAfter'] !== 'aa/' . str_repeat('0', 64) . '.png'
+    || $objectPage->nextCursor?->value !== $key->value
+) {
+    failObjectStorageTest('S3 inventories should use bounded StartAfter ListObjectsV2 requests.');
 }
 unlink($s3Source);
 

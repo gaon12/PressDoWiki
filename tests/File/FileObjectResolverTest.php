@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PressDo\App\Services\File\FileObjectLocator;
 use PressDo\App\Services\File\FileObjectResolver;
 use PressDo\App\Services\Uploaders\ObjectKey;
+use PressDo\App\Services\Uploaders\ObjectPage;
 use PressDo\App\Services\Uploaders\ObjectStorageInterface;
 use PressDo\App\Services\Uploaders\StoredObject;
 
@@ -29,6 +30,11 @@ final readonly class ExistingKeyStorage implements ObjectStorageInterface
     public function exists(ObjectKey $key): bool
     {
         return in_array($key->value, $this->existing, true);
+    }
+
+    public function listObjects(?ObjectKey $after, int $limit): ObjectPage
+    {
+        return new ObjectPage([], null);
     }
 
     public function delete(ObjectKey $key): void {}

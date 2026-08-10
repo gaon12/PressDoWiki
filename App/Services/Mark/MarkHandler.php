@@ -9,6 +9,8 @@ use RuntimeException;
 
 class MarkHandler
 {
+    private const MAX_INPUT_BYTES = 2_097_152;
+
     private const MARK_ALIASES = [
         'Namumark' => 'NamuMark',
         'namumark' => 'NamuMark',
@@ -19,6 +21,10 @@ class MarkHandler
      */
     public static function load(string $content, array $options): MarkupResult
     {
+        if (strlen($content) > self::MAX_INPUT_BYTES) {
+            throw new RuntimeException('Markup input exceeds the 2 MiB engine limit.');
+        }
+
         $mark = Config::get('wiki.mark');
         if (!is_string($mark) || $mark === '') {
             throw new RuntimeException('The configured markup language must be a non-empty string.');

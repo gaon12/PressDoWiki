@@ -56,4 +56,17 @@ foreach (
     }
 }
 
+foreach (
+    [
+        ['html' => str_repeat('x', 8_388_609)],
+        ['html' => '', 'editor_comment' => str_repeat('x', 65_537)],
+    ] as $oversizedResult
+) {
+    try {
+        MarkupResult::fromLoaderResult($oversizedResult);
+        failMarkupResultTest('Oversized loader output must be rejected at the engine boundary.');
+    } catch (RuntimeException) {
+    }
+}
+
 echo 'Markup result boundary tests passed.' . PHP_EOL;

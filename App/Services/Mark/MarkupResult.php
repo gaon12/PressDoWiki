@@ -11,6 +11,10 @@ use RuntimeException;
  */
 final readonly class MarkupResult
 {
+    private const MAX_HTML_BYTES = 8_388_608;
+
+    private const MAX_EDITOR_COMMENT_BYTES = 65_536;
+
     public function __construct(
         public string $html,
         public MarkupLinks $links,
@@ -24,10 +28,16 @@ final readonly class MarkupResult
         if (!is_string($html)) {
             throw new RuntimeException('Markup loaders must return an HTML string.');
         }
+        if (strlen($html) > self::MAX_HTML_BYTES) {
+            throw new RuntimeException('Markup loader HTML exceeds the 8 MiB output limit.');
+        }
 
         $editorComment = $result['editor_comment'] ?? '';
         if (!is_string($editorComment)) {
             throw new RuntimeException('Markup loader editor_comment must be a string.');
+        }
+        if (strlen($editorComment) > self::MAX_EDITOR_COMMENT_BYTES) {
+            throw new RuntimeException('Markup loader editor_comment exceeds the 64 KiB limit.');
         }
 
         return new self(

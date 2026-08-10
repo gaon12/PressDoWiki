@@ -35,4 +35,10 @@ setMarkConfigValues(['wiki.mark' => 'Namumark']);
 $alias = MarkHandler::load("== Alias ==\n\nBody", []);
 assertMarkValue(true, str_contains($alias->html, '<h'), 'Legacy Namumark spelling should select the built-in NamuMark renderer.');
 
+try {
+    MarkHandler::load(str_repeat('x', 2_097_153), []);
+    assertMarkValue(true, false, 'All markup engines should share the same input limit.');
+} catch (RuntimeException) {
+}
+
 echo "Mark handler tests passed.".PHP_EOL;

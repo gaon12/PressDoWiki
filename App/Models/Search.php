@@ -7,7 +7,6 @@ namespace PressDo\App\Models;
 use ErrorException;
 use PDO;
 use PDOException;
-use PressDo\App\Helpers\SqlDialect;
 use PressDo\App\Services\Search\PdoSearchIndex;
 use UnexpectedValueException;
 
@@ -30,8 +29,8 @@ final class Search extends \PressDo\App\Core\Model
         $db = self::db();
 
         try {
-            $statement = $db->prepare('SELECT `namespace`, `title` FROM document WHERE `namespace` = :ns AND (`title` REGEXP :q OR `title` REGEXP :c OR `title` REGEXP :r)
-                ORDER BY CASE WHEN `title` REGEXP :q THEN 1 WHEN `title` REGEXP :c THEN 2 WHEN `title` REGEXP :r THEN 3 END, title ASC LIMIT 10');
+            $statement = $db->prepare("SELECT `namespace`, `title` FROM document WHERE `status` = 'normal' AND `namespace` = :ns AND (`title` REGEXP :q OR `title` REGEXP :c OR `title` REGEXP :r)
+                ORDER BY CASE WHEN `title` REGEXP :q THEN 1 WHEN `title` REGEXP :c THEN 2 WHEN `title` REGEXP :r THEN 3 END, title ASC LIMIT 10");
             $statement->execute(['ns' => $namespace, 'q' => $toplevel, 'c' => $midlevel, 'r' => $lowlevel]);
         } catch (PDOException $error) {
             throw new ErrorException($error->getMessage() . ': failed to search document titles', previous: $error);
@@ -50,7 +49,7 @@ final class Search extends \PressDo\App\Core\Model
     {
         $db = self::db();
 
-        if (!SqlDialect::isMysql()) {
+        if (!self::isMysql($db)) {
             $like = '%' . $keystring . '%';
             [$where, $args] = match ($target) {
                 'title_content' => ['(s.`text` LIKE ? OR d.title = ?)', [$like, $keystring]],
@@ -73,7 +72,7 @@ final class Search extends \PressDo\App\Core\Model
             };
         }
 
-        $sql = "SELECT d.namespace, d.title, s.text FROM search_index s JOIN document d ON d.uuid = s.document WHERE {$where}";
+        $sql = "SELECT d.namespace, d.title, s.text FROM search_index s JOIN document d ON d.uuid = s.document WHERE d.status = 'normal' AND {$where}";
         if (!empty($namespace)) {
             $sql .= ' AND d.namespace = ?';
             $args[] = $namespace;
@@ -120,5 +119,15 @@ final class Search extends \PressDo\App\Core\Model
         }
 
         return ['namespace' => $namespace, 'title' => $title, 'text' => $text];
+    }
+
+    private static function isMysql(PDO $database): bool
+    {
+        $driver = $database->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if (!is_string($driver) || $driver === '') {
+            throw new UnexpectedValueException('The search database driver could not be identified.');
+        }
+
+        return in_array(strtolower($driver), ['mysql', 'mariadb'], true);
     }
 }

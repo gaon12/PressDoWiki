@@ -31,6 +31,7 @@
 			"php tests/MarkHandlerTest.php",
 			"php tests/Mark/MarkupResultTest.php",
 			"php tests/Backlink/PdoBacklinkIndexTest.php",
+			"php tests/Document/DocumentRevisionStoreTest.php",
 			"php tests/Search/SearchTextExtractorTest.php",
 			"php tests/Search/PdoSearchIndexTest.php",
 			"php tests/Mark/NamuMarkRendererTest.php",

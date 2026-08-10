@@ -16,6 +16,7 @@ $finder = PhpCsFixer\Finder::create()
     ->in([
         __DIR__.'/App/Admin/Settings',
         __DIR__.'/App/Services/Backlink',
+        __DIR__.'/App/Services/Document',
         __DIR__.'/App/Services/Search',
         __DIR__.'/App/Core',
         __DIR__.'/App/Helpers',
@@ -28,6 +29,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/Search',
         __DIR__.'/tests/Update',
         __DIR__.'/tests/Http',
+        __DIR__.'/tests/Document',
         __DIR__.'/tests/Infrastructure',
         __DIR__.'/tests/Mark',
         __DIR__.'/tests/Admin',

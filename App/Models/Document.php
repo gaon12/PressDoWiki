@@ -7,6 +7,8 @@ use \ErrorException as ErrorException;
 use PressDo\App\Core\Controller;
 use PressDo\App\Models\Concerns\DocumentPageLists;
 use PressDo\App\Helpers\SqlDialect;
+use PressDo\App\Services\Document\DocumentRevision;
+use PressDo\App\Services\Document\PdoDocumentRevisionStore;
 
 class Document extends \PressDo\App\Core\Model
 {
@@ -121,20 +123,29 @@ class Document extends \PressDo\App\Core\Model
     public static function save(string $uuid, string $content, string $comment, ?string $cont_m, ?string $cont_i, int $baserev, int $prevlen, string $action): void
     {
         $db = self::db();
-        $cnt = iconv_strlen($content)-$prevlen;
+        $lengthDelta = mb_strlen($content, 'UTF-8') - $prevlen;
         
         if($cont_m !== null)
             $cont_m = self::uuid2bin($cont_m);
         elseif($cont_i !== null)
             $cont_i = self::uuid2bin($cont_i);
 
-        $uuid = self::uuid2bin($uuid);
+        $documentId = self::uuid2bin($uuid);
 
         try {
-            $g = $db->prepare("INSERT INTO `history`(uuid, document, content, comment, action, rev, count, contributor_m, contributor_i) VALUES(?,?,?,?,?,?,?,?,?)");
-            $g->execute([self::uuid2bin(self::generateUuid()), $uuid, $content, $comment, $action, $baserev+1, $cnt, $cont_m, $cont_i]);
+            (new PdoDocumentRevisionStore($db))->append(new DocumentRevision(
+                revisionId: self::uuid2bin(self::generateUuid()),
+                documentId: $documentId,
+                content: $content,
+                comment: $comment,
+                action: $action,
+                revision: $baserev + 1,
+                lengthDelta: $lengthDelta,
+                contributorMemberId: $cont_m,
+                contributorIpId: $cont_i,
+            ));
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 문서 편집 저장 중 오류 발생');
+            throw new ErrorException($err->getMessage().': 문서 편집 저장 중 오류 발생', previous: $err);
         }
     }
 

@@ -3,6 +3,7 @@ parameters:
     paths:
         - App/Admin/Settings
         - App/Services/Backlink
+        - App/Services/Document
         - App/Services/Search
         - App/Controllers/Pages/admin/Config.php
         - App/Controllers/Pages/api/Preview.php

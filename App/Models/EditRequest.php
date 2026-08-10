@@ -4,6 +4,10 @@ namespace PressDo\App\Models;
 use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
+use PressDo\App\Services\Document\DocumentRevision;
+use PressDo\App\Services\Document\PdoDocumentRevisionStore;
+use RuntimeException;
+use Throwable;
 
 class EditRequest extends \PressDo\App\Core\Model
 {
@@ -110,25 +114,76 @@ class EditRequest extends \PressDo\App\Core\Model
     public static function accept(string $slug, array $erdata, ?string $cont_m, ?string $cont_i, int $acceptrev): void
     {
         $db = self::db();
-        $uuid = self::uuid2bin(self::generateUuid());
+        $revisionId = self::uuid2bin(self::generateUuid());
 
         if($cont_m !== null)
             $cont_m = self::uuid2bin($cont_m);
         elseif($cont_i !== null)
             $cont_i = self::uuid2bin($cont_i);
-        
-        try {
-            $d = $db->prepare("UPDATE `editrequest` SET `status`='accepted', acceptrev=?, lastedit=?, executor_m=?, executor_i=? WHERE `urlstr`=?");
-            $d->execute([$acceptrev, time(), $cont_m, $cont_i, $slug]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 편집 요청 승인 중 오류 발생');
+
+        $document = $erdata['document'] ?? null;
+        $content = $erdata['content'] ?? null;
+        $comment = $erdata['comment'] ?? null;
+        $lengthDelta = $erdata['count'] ?? null;
+        $contributorMember = $erdata['contributor_m'] ?? null;
+        $contributorIp = $erdata['contributor_i'] ?? null;
+        if (is_int($lengthDelta)) {
+            $normalizedLengthDelta = $lengthDelta;
+        } elseif (is_string($lengthDelta) && preg_match('/\A-?\d+\z/D', $lengthDelta) === 1) {
+            $normalizedLengthDelta = (int) $lengthDelta;
+        } else {
+            $normalizedLengthDelta = null;
+        }
+
+        if (
+            !is_string($document)
+            || !is_string($content)
+            || !is_string($comment)
+            || $normalizedLengthDelta === null
+            || ($contributorMember !== null && !is_string($contributorMember))
+            || ($contributorIp !== null && !is_string($contributorIp))
+        ) {
+            throw new RuntimeException('편집 요청 리비전 데이터가 올바르지 않습니다.');
+        }
+
+        $startedTransaction = !$db->inTransaction();
+        if ($startedTransaction) {
+            $db->beginTransaction();
         }
 
         try {
-            $d = $db->prepare("INSERT INTO `history` (uuid, document, content, comment, action, rev, count, contributor_m, contributor_i, edit_request_uri) VALUES(?,?,?,?,'modify',?,?,?,?,?)");
-            $d->execute([$uuid, self::uuid2bin($erdata['document']), $erdata['content'], $erdata['comment'], $acceptrev, $erdata['count'], $erdata['contributor_m'], $erdata['contributor_i'], $slug]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 편집 요청 저장 중 오류 발생');
+            $update = $db->prepare("UPDATE `editrequest` SET `status`='accepted', acceptrev=?, lastedit=?, executor_m=?, executor_i=? WHERE `urlstr`=? AND `status`='open'");
+            $update->execute([$acceptrev, time(), $cont_m, $cont_i, $slug]);
+            if ($update->rowCount() !== 1) {
+                throw new RuntimeException('열려 있는 편집 요청만 승인할 수 있습니다.');
+            }
+
+            (new PdoDocumentRevisionStore($db))->append(new DocumentRevision(
+                revisionId: $revisionId,
+                documentId: self::uuid2bin($document),
+                content: $content,
+                comment: $comment,
+                action: 'modify',
+                revision: $acceptrev,
+                lengthDelta: $normalizedLengthDelta,
+                contributorMemberId: $contributorMember,
+                contributorIpId: $contributorIp,
+                editRequestSlug: $slug,
+            ));
+
+            if ($startedTransaction) {
+                $db->commit();
+            }
+        } catch (Throwable $error) {
+            if ($startedTransaction && $db->inTransaction()) {
+                $db->rollBack();
+            }
+
+            if ($error instanceof PDOException) {
+                throw new ErrorException($error->getMessage().': 편집 요청 승인 중 오류 발생', previous: $error);
+            }
+
+            throw $error;
         }
     }
     

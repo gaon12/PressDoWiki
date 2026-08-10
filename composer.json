@@ -57,6 +57,7 @@
 			"php tests/RequestTest.php",
 			"php tests/Rendering/BladeTemplateRendererTest.php",
 			"php tests/Rendering/FrameTemplateTest.php",
+			"php tests/Rendering/ErrorTemplateTest.php",
 			"php tests/Rendering/AdminConfigTemplateTest.php",
 			"php tests/Rendering/AdminStorageIntegrityTemplateTest.php",
 			"php tests/Rendering/WikiTemplateBoundaryTest.php",

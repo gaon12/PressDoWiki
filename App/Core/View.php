@@ -114,6 +114,7 @@ final class View
 
         $bladeView = match ($viewName) {
             'wiki' => 'wiki',
+            'error' => 'error',
             'config' => 'admin.config',
             'storage_integrity' => 'admin.storage_integrity',
             default => null,

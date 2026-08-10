@@ -25,7 +25,7 @@ final readonly class BlockParser
      */
     public function render(array $lines): string
     {
-        $blocks = [];
+        $writer = new SectionWriter();
         $paragraph = [];
         $headingNumber = 0;
 
@@ -33,7 +33,7 @@ final readonly class BlockParser
             $line = $lines[$index];
 
             if (trim($line) === '') {
-                $this->flushParagraph($paragraph, $blocks);
+                $this->flushParagraph($paragraph, $writer);
                 continue;
             }
 
@@ -45,40 +45,38 @@ final readonly class BlockParser
             if (trim($line) === '{{{') {
                 $closingIndex = $this->findLiteralBlockEnd($lines, $index + 1);
                 if ($closingIndex === null) {
-                    $this->flushParagraph($paragraph, $blocks);
+                    $this->flushParagraph($paragraph, $writer);
                     $literalLines = array_map(
                         fn(string $literalLine): string => $this->inlineRenderer->renderLiteral($literalLine),
                         array_slice($lines, $index),
                     );
-                    $blocks[] = '<p>' . implode("<br>\n", $literalLines) . '</p>';
+                    $writer->addBlock('<p>' . implode("<br>\n", $literalLines) . '</p>');
                     break;
                 }
 
-                $this->flushParagraph($paragraph, $blocks);
+                $this->flushParagraph($paragraph, $writer);
                 $literal = implode("\n", array_slice($lines, $index + 1, $closingIndex - $index - 1));
-                $blocks[] = '<pre class="wiki-code"><code>'
+                $writer->addBlock('<pre class="wiki-code"><code>'
                     . $this->inlineRenderer->renderLiteral($literal)
-                    . '</code></pre>';
+                    . '</code></pre>');
                 $index = $closingIndex;
                 continue;
             }
 
             if (preg_match('/\A(={1,6})[ \t]+(.+?)[ \t]+\1\z/u', $line, $heading) === 1) {
-                $this->flushParagraph($paragraph, $blocks);
+                $this->flushParagraph($paragraph, $writer);
                 ++$headingNumber;
                 $level = strlen($heading[1]);
-                $blocks[] = sprintf(
-                    '<h%d id="s-%d">%s</h%d>',
+                $writer->addHeading(
                     $level,
                     $headingNumber,
                     $this->inlineRenderer->render($heading[2]),
-                    $level,
                 );
                 continue;
             }
 
             if (($tableRow = $this->tableParser->parseRow($line)) !== null) {
-                $this->flushParagraph($paragraph, $blocks);
+                $this->flushParagraph($paragraph, $writer);
                 $tableRows = [$tableRow];
 
                 while ($index + 1 < $lineCount) {
@@ -91,40 +89,40 @@ final readonly class BlockParser
                     ++$index;
                 }
 
-                $blocks[] = $this->tableParser->render($tableRows);
+                $writer->addBlock($this->tableParser->render($tableRows));
                 continue;
             }
 
             if ($this->matchQuote($line) !== null) {
-                $this->flushParagraph($paragraph, $blocks);
+                $this->flushParagraph($paragraph, $writer);
                 $quotes = [];
                 while ($index < $lineCount && ($quote = $this->matchQuote($lines[$index])) !== null) {
                     $quotes[] = $quote;
                     ++$index;
                 }
                 --$index;
-                $blocks[] = $this->renderQuotes($quotes);
+                $writer->addBlock($this->renderQuotes($quotes));
                 continue;
             }
 
             if ($this->matchListItem($line) !== null) {
-                $this->flushParagraph($paragraph, $blocks);
+                $this->flushParagraph($paragraph, $writer);
                 $items = [];
                 while ($index < $lineCount && ($item = $this->matchListItem($lines[$index])) !== null) {
                     $items[] = $item;
                     ++$index;
                 }
                 --$index;
-                $blocks[] = $this->renderList($items);
+                $writer->addBlock($this->renderList($items));
                 continue;
             }
 
             $paragraph[] = $line;
         }
 
-        $this->flushParagraph($paragraph, $blocks);
+        $this->flushParagraph($paragraph, $writer);
 
-        return implode("\n", $blocks);
+        return $writer->finish();
     }
 
     private function matchRedirect(string $line): ?string
@@ -269,9 +267,8 @@ final readonly class BlockParser
 
     /**
      * @param list<string> $paragraph
-     * @param list<string> $blocks
      */
-    private function flushParagraph(array &$paragraph, array &$blocks): void
+    private function flushParagraph(array &$paragraph, SectionWriter $writer): void
     {
         if ($paragraph === []) {
             return;
@@ -281,7 +278,7 @@ final readonly class BlockParser
             fn(string $line): string => $this->inlineRenderer->render($line),
             $paragraph,
         );
-        $blocks[] = '<p>' . implode("<br>\n", $renderedLines) . '</p>';
+        $writer->addBlock('<p>' . implode("<br>\n", $renderedLines) . '</p>');
         $paragraph = [];
     }
 }

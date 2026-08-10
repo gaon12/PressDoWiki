@@ -29,6 +29,7 @@
 			"php tests/Rendering/BladeTemplateRendererTest.php",
 			"php tests/Rendering/FrameTemplateTest.php",
 			"php tests/Rendering/AdminConfigTemplateTest.php",
+			"php tests/Update/ReleaseVerifierTest.php",
 			"php tests/SchemaCompatibilityTest.php"
 		],
 		"check": [

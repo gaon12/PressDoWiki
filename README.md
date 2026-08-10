@@ -106,10 +106,13 @@ Run the same checks used by CI:
 
 ```sh
 composer validate --strict
+composer format
 composer check
 ```
 
-`composer check` runs syntax linting and the current lightweight PHP test suite.
+`composer format` applies the committed PER-CS 2.0 rules to code covered by the
+formatting ratchet. `composer check` verifies syntax, formatting, PHPStan level
+max, the current test suite, and known dependency advisories.
 
  ### 지원 스킨
  - ~~senkawa~~ (저작권 문제로 배포하지 않습니다.)

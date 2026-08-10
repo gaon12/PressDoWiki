@@ -14,6 +14,7 @@ declare(strict_types=1);
 $finder = PhpCsFixer\Finder::create()
     ->files()
     ->in([
+        __DIR__.'/App/Admin/Settings',
         __DIR__.'/App/Core',
         __DIR__.'/App/Helpers',
         __DIR__.'/App/Http',
@@ -21,6 +22,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/App/Shared/Rendering',
         __DIR__.'/tests/Rendering',
         __DIR__.'/tests/Http',
+        __DIR__.'/tests/Admin',
     ])
     ->append([__DIR__.'/tests/GeoIpTest.php']);
 

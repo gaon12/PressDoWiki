@@ -1,6 +1,7 @@
 parameters:
     level: max
     paths:
+        - App/Admin/Settings
         - App/Core/Request.php
         - App/Core/Response.php
         - App/Core/Skin.php

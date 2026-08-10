@@ -25,7 +25,7 @@ $database = new PDO('sqlite::memory:');
 $database->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $database->exec('CREATE TABLE document (uuid BLOB PRIMARY KEY, backlink_updated INTEGER NOT NULL DEFAULT 1)');
 $database->exec(
-    'CREATE TABLE history (uuid BLOB PRIMARY KEY, document BLOB NOT NULL, content TEXT, comment TEXT NOT NULL, action TEXT NOT NULL, rev INTEGER NOT NULL, count INTEGER NOT NULL, contributor_m BLOB, contributor_i BLOB, edit_request_uri TEXT)',
+    'CREATE TABLE history (uuid BLOB PRIMARY KEY, document BLOB NOT NULL, content TEXT, comment TEXT NOT NULL, action TEXT NOT NULL, rev INTEGER NOT NULL, count INTEGER NOT NULL, contributor_m BLOB, contributor_i BLOB, edit_request_uri TEXT, moved_from TEXT, moved_to TEXT)',
 );
 $database->exec(
     'CREATE TABLE editrequest (urlstr TEXT PRIMARY KEY, status TEXT NOT NULL, acceptrev INTEGER, lastedit INTEGER, executor_m BLOB, executor_i BLOB)',

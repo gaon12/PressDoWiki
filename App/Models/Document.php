@@ -9,6 +9,7 @@ use PressDo\App\Models\Concerns\DocumentPageLists;
 use PressDo\App\Helpers\SqlDialect;
 use PressDo\App\Services\Document\DocumentRevision;
 use PressDo\App\Services\Document\PdoDocumentDeletionStore;
+use PressDo\App\Services\Document\PdoDocumentMoveStore;
 use PressDo\App\Services\Document\PdoDocumentRevisionStore;
 
 class Document extends \PressDo\App\Core\Model
@@ -168,34 +169,35 @@ class Document extends \PressDo\App\Core\Model
         [$toNS, $toT] = Controller::parseTitle($to);
         [$fromNS, $fromT] = Controller::parseTitle($from);
 
-        $uuid = self::uuid2bin($uuid);
+        $documentId = self::uuid2bin($uuid);
 
         if($cont_m !== null)
             $cont_m = self::uuid2bin($cont_m);
         elseif($cont_i !== null)
             $cont_i = self::uuid2bin($cont_i);
 
-        $a = $db->prepare("UPDATE `document` SET `namespace`=?, `title`=? WHERE `uuid`=?");
-        $a->execute([$toNS, $toT, $uuid]);
-
-        $d = [
-            self::uuid2bin(self::generateUuid()),
-            $uuid,
-            $comment,
-            'move',
-            $baserev + 1,
-            0,
-            $cont_m,
-            $cont_i,
-            $from,
-            $to
-        ];
-        
         try {
-            $b = $db->prepare("INSERT INTO `history`(uuid,document,comment,action,rev,count,contributor_m,contributor_i,moved_from,moved_to) VALUES(?,?,?,?,?,?,?,?,?,?)");
-            $b->execute($d);
+            (new PdoDocumentMoveStore($db))->move(
+                new DocumentRevision(
+                    revisionId: self::uuid2bin(self::generateUuid()),
+                    documentId: $documentId,
+                    content: null,
+                    comment: $comment,
+                    action: 'move',
+                    revision: $baserev + 1,
+                    lengthDelta: 0,
+                    contributorMemberId: $cont_m,
+                    contributorIpId: $cont_i,
+                    movedFrom: $from,
+                    movedTo: $to,
+                ),
+                sourceNamespace: $fromNS,
+                sourceTitle: $fromT,
+                destinationNamespace: $toNS,
+                destinationTitle: $toT,
+            );
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 문서 이동 중 오류 발생');
+            throw new ErrorException($err->getMessage().': 문서 이동 중 오류 발생', previous: $err);
         }
     }
 

@@ -12,6 +12,8 @@ namespace PressDo\App\Services\Mark\NamuMark;
  */
 final readonly class BlockParser
 {
+    private const MAX_NESTING_DEPTH = 8;
+
     public function __construct(private InlineRenderer $inlineRenderer) {}
 
     /**
@@ -23,9 +25,32 @@ final readonly class BlockParser
         $paragraph = [];
         $headingNumber = 0;
 
-        foreach ($lines as $line) {
+        for ($index = 0, $lineCount = count($lines); $index < $lineCount; ++$index) {
+            $line = $lines[$index];
+
             if (trim($line) === '') {
                 $this->flushParagraph($paragraph, $blocks);
+                continue;
+            }
+
+            if (trim($line) === '{{{') {
+                $closingIndex = $this->findLiteralBlockEnd($lines, $index + 1);
+                if ($closingIndex === null) {
+                    $this->flushParagraph($paragraph, $blocks);
+                    $literalLines = array_map(
+                        fn(string $literalLine): string => $this->inlineRenderer->renderLiteral($literalLine),
+                        array_slice($lines, $index),
+                    );
+                    $blocks[] = '<p>' . implode("<br>\n", $literalLines) . '</p>';
+                    break;
+                }
+
+                $this->flushParagraph($paragraph, $blocks);
+                $literal = implode("\n", array_slice($lines, $index + 1, $closingIndex - $index - 1));
+                $blocks[] = '<pre class="wiki-code"><code>'
+                    . $this->inlineRenderer->renderLiteral($literal)
+                    . '</code></pre>';
+                $index = $closingIndex;
                 continue;
             }
 
@@ -43,12 +68,139 @@ final readonly class BlockParser
                 continue;
             }
 
+            if ($this->matchQuote($line) !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $quotes = [];
+                while ($index < $lineCount && ($quote = $this->matchQuote($lines[$index])) !== null) {
+                    $quotes[] = $quote;
+                    ++$index;
+                }
+                --$index;
+                $blocks[] = $this->renderQuotes($quotes);
+                continue;
+            }
+
+            if ($this->matchListItem($line) !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $items = [];
+                while ($index < $lineCount && ($item = $this->matchListItem($lines[$index])) !== null) {
+                    $items[] = $item;
+                    ++$index;
+                }
+                --$index;
+                $blocks[] = $this->renderList($items);
+                continue;
+            }
+
             $paragraph[] = $line;
         }
 
         $this->flushParagraph($paragraph, $blocks);
 
         return implode("\n", $blocks);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function findLiteralBlockEnd(array $lines, int $startIndex): ?int
+    {
+        for ($index = $startIndex, $lineCount = count($lines); $index < $lineCount; ++$index) {
+            if (trim($lines[$index]) === '}}}') {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array{depth: int, text: string}|null */
+    private function matchQuote(string $line): ?array
+    {
+        if (preg_match('/\A(>{1,' . self::MAX_NESTING_DEPTH . '})[ \t]?(.*)\z/u', $line, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'depth' => strlen($match[1]),
+            'text' => $match[2],
+        ];
+    }
+
+    /**
+     * @param list<array{depth: int, text: string}> $quotes
+     */
+    private function renderQuotes(array $quotes): string
+    {
+        $rendered = [];
+        foreach ($quotes as $quote) {
+            $line = '<p>' . $this->inlineRenderer->render($quote['text']) . '</p>';
+            for ($depth = 1; $depth < $quote['depth']; ++$depth) {
+                $line = '<blockquote>' . $line . '</blockquote>';
+            }
+            $rendered[] = $line;
+        }
+
+        return '<blockquote class="wiki-quote">' . implode("\n", $rendered) . '</blockquote>';
+    }
+
+    /** @return array{depth: int, text: string}|null */
+    private function matchListItem(string $line): ?array
+    {
+        if (preg_match('/\A( {1,' . self::MAX_NESTING_DEPTH . '})\*[ \t]+(.*)\z/u', $line, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'depth' => strlen($match[1]),
+            'text' => $match[2],
+        ];
+    }
+
+    /**
+     * @param list<array{depth: int, text: string}> $items
+     */
+    private function renderList(array $items): string
+    {
+        if ($items === []) {
+            return '';
+        }
+
+        $index = 0;
+
+        $html = '';
+        while ($index < count($items)) {
+            $html .= $this->renderListLevel($items, $index, $items[$index]['depth']);
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param list<array{depth: int, text: string}> $items
+     */
+    private function renderListLevel(array $items, int &$index, int $depth): string
+    {
+        $html = '<ul class="wiki-list">';
+        $itemCount = count($items);
+
+        while ($index < $itemCount) {
+            $item = $items[$index];
+            if ($item['depth'] !== $depth) {
+                break;
+            }
+
+            ++$index;
+            $html .= '<li>' . $this->inlineRenderer->render($item['text']);
+
+            while ($index < $itemCount && $items[$index]['depth'] > $depth) {
+                $html .= $this->renderListLevel($items, $index, $items[$index]['depth']);
+            }
+
+            $html .= '</li>';
+        }
+
+        return $html . '</ul>';
     }
 
     /**

@@ -1,7 +1,7 @@
 <?php
 namespace PressDo;
 
-require '../vendor/autoload.php';
+require dirname(__DIR__).'/vendor/autoload.php';
 
 use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver,Csp};
 use PressDo\App\Core\{Controller,Request,Response};

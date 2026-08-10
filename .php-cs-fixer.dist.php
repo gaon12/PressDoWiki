@@ -26,6 +26,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/Rendering',
         __DIR__.'/tests/Update',
         __DIR__.'/tests/Http',
+        __DIR__.'/tests/Infrastructure',
         __DIR__.'/tests/Mark',
         __DIR__.'/tests/Admin',
         __DIR__.'/tests/Backlink',
@@ -40,6 +41,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/App/Services/Mark/MarkupLinks.php',
         __DIR__.'/App/Services/Mark/MarkupResult.php',
         __DIR__.'/tests/GeoIpTest.php',
+        __DIR__.'/tests/ProjectPathsTest.php',
         __DIR__.'/tests/ViewSkinTest.php',
     ]);
 

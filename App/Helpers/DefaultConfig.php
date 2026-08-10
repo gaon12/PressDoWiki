@@ -1,47 +1,73 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PressDo\App\Helpers;
 
-class DefaultConfig
+use PDO;
+use PressDo\App\Core\ProjectPaths;
+use PressDo\App\Infrastructure\Files\JsonFile;
+use RuntimeException;
+use UnexpectedValueException;
+
+final class DefaultConfig
 {
+    /** @var array<string, mixed> */
     private static array $DefConfig = [];
 
-    /**
-     * Initialize configs.
-     */
-    private static function init()
+    private static function init(): void
     {
-        if (empty(static::$DefConfig)) {
-            static::$DefConfig = json_decode(file_get_contents('../config/config.json'), true);
+        if (self::$DefConfig === []) {
+            self::$DefConfig = JsonFile::readObject(ProjectPaths::config('config.json'));
         }
     }
 
-    /**
-     * get config value
-     */
-    public static function get(string $key)
+    public static function get(string $key): mixed
     {
         self::init();
-        $res = static::$DefConfig[$key];
+        $value = self::$DefConfig[$key] ?? null;
 
-        if (is_array($res) && count($res) == 1) {
-            $res = $res[0];
+        if (is_array($value) && count($value) === 1) {
+            return $value[0];
         }
-        return $res;
+
+        return $value;
     }
 
-    public static function update(\PDO $instance): void
-    {
-        $d = $instance->query('SELECT `key`, `value` FROM config');
-        static::$DefConfig = array_merge(static::$DefConfig, $d->fetchAll(\PDO::FETCH_GROUP | \PDO::FETCH_COLUMN));
-    }
-
-    /**
-     * get All array
-     */
-    public static function all()
+    /** Merge installed database settings into the file defaults. */
+    public static function update(PDO $instance): void
     {
         self::init();
-        return static::$DefConfig;
+        $statement = $instance->query('SELECT `key`, `value` FROM config');
+        if ($statement === false) {
+            throw new RuntimeException('Default configuration rows could not be queried.');
+        }
+
+        $databaseValues = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if (!is_array($row)) {
+                throw new UnexpectedValueException('A configuration row must be an array.');
+            }
+
+            $key = $row['key'] ?? null;
+            $value = $row['value'] ?? null;
+            if (!is_string($key) || !is_string($value)) {
+                throw new UnexpectedValueException('Configuration keys and values must be strings.');
+            }
+
+            $databaseValues[$key][] = $value;
+        }
+
+        foreach ($databaseValues as $key => $values) {
+            self::$DefConfig[$key] = count($values) === 1 ? $values[0] : $values;
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public static function all(): array
+    {
+        self::init();
+
+        return self::$DefConfig;
     }
 }

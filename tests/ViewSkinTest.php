@@ -25,9 +25,8 @@ function assertViewSkinContains(string $needle, string $haystack, string $messag
     }
 }
 
-$root = dirname(__DIR__);
 $previousDirectory = getcwd();
-chdir($root . '/public');
+chdir(sys_get_temp_dir());
 
 try {
     $view = new View();

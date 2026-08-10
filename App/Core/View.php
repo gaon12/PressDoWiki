@@ -35,13 +35,11 @@ final class View
      */
     public function __construct(array $session = [], ?TemplateRenderer $templates = null)
     {
-        $root = dirname(__DIR__, 2);
-
         $this->session = $session;
-        $this->viewRoot = $root . '/resources/views';
+        $this->viewRoot = ProjectPaths::resources('views');
         $this->templates = $templates ?? new BladeTemplateRenderer(
             $this->viewRoot,
-            $root . '/var/cache/blade',
+            ProjectPaths::variable('cache/blade'),
         );
     }
 
@@ -69,7 +67,7 @@ final class View
             fn(string $title, string $namespace): string => Controller::makeTitle($namespace, $title),
         );
 
-        $this->latte->setTempDirectory('../temp');
+        $this->latte->setTempDirectory(ProjectPaths::variable('cache/latte'));
         $this->latte->addFilter('formatTime', fn(int $time): array => Controller::formatTime($time));
 
         $skinName = $this->resolveSkinName($this->requestedSkinName());
@@ -89,29 +87,29 @@ final class View
             case 'ShortestPages':
             case 'UncategorizedPages':
             case 'RandomPage':
-                $file = '../App/Views/layouts/pagelist.latte';
+                $file = ProjectPaths::app('Views/layouts/pagelist.latte');
                 break;
             case 'admin':
             case 'member':
-                $file = '../App/Views/layouts/' . $page . '/' . $route['menu'] . '.latte';
+                $file = ProjectPaths::app('Views/layouts/' . $page . '/' . $route['menu'] . '.latte');
                 break;
             case 'new_edit_request':
             case 'edit_request':
-                $file = '../App/Views/layouts/edit.latte';
+                $file = ProjectPaths::app('Views/layouts/edit.latte');
                 if ($route['action'] === 'edit') {
                     break;
                 }
                 // The legacy route intentionally falls through for non-edit actions.
                 // no break
             default:
-                $file = '../App/Views/layouts/' . $page . '.latte';
+                $file = ProjectPaths::app('Views/layouts/' . $page . '.latte');
         }
 
         $viewName = $this->viewName();
         if ($viewName === 'error') {
-            $file = '../App/Views/layouts/error.latte';
+            $file = ProjectPaths::app('Views/layouts/error.latte');
         } elseif ($viewName === 'notfound') {
-            $file = '../App/Views/layouts/notfound.latte';
+            $file = ProjectPaths::app('Views/layouts/notfound.latte');
         }
 
         $this->params['innerLayout'] = $viewName === 'config'
@@ -238,7 +236,7 @@ final class View
 
     private function skinConfigPath(string $skinName): string
     {
-        return 'skins/' . $skinName . '/config.json';
+        return ProjectPaths::public('skins/' . $skinName . '/config.json');
     }
 
     private function renderSkinLayout(string $skinName): string
@@ -269,7 +267,7 @@ final class View
     private function findSkinLayoutPath(string $skinName): ?string
     {
         foreach (['layout.php', 'layout.latte'] as $filename) {
-            $path = 'skins/' . $skinName . '/' . $filename;
+            $path = ProjectPaths::public('skins/' . $skinName . '/' . $filename);
             if (is_file($path)) {
                 return $path;
             }

@@ -44,6 +44,7 @@
 			"php tests/File/FileObjectResolverTest.php",
 			"php tests/File/FileIntegrityScannerTest.php",
 			"php tests/File/OrphanObjectScannerTest.php",
+			"php tests/File/OrphanObjectCleanerTest.php",
 			"php tests/File/ObjectMutationLockTest.php",
 			"php tests/Uploaders/ObjectStorageTest.php",
 			"php tests/Search/SearchTextExtractorTest.php",

@@ -39,6 +39,11 @@ final readonly class InventoryStorage implements ObjectStorageInterface
         return false;
     }
 
+    public function metadata(ObjectKey $key): ?ObjectInfo
+    {
+        return null;
+    }
+
     public function listObjects(?ObjectKey $after, int $limit): ObjectPage
     {
         return new ObjectPage(array_slice($this->items, 0, $limit), $this->nextCursor);

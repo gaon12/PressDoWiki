@@ -7,8 +7,11 @@ use PressDo\App\Services\File\DuplicateFileException;
 use PressDo\App\Services\File\FileMetadata;
 use PressDo\App\Services\File\FileUploadCompensationException;
 use PressDo\App\Services\File\FileUploadService;
+use PressDo\App\Services\File\ObjectMutationLockInterface;
 use PressDo\App\Services\File\PdoFileDocumentStore;
+use PressDo\App\Services\File\PdoObjectMutationLock;
 use PressDo\App\Services\File\PendingFileUpload;
+use PressDo\App\Services\Uploaders\ObjectInfo;
 use PressDo\App\Services\Uploaders\ObjectKey;
 use PressDo\App\Services\Uploaders\ObjectPage;
 use PressDo\App\Services\Uploaders\ObjectStorageInterface;
@@ -58,6 +61,11 @@ final class RecordingObjectStorage implements ObjectStorageInterface
         return false;
     }
 
+    public function metadata(ObjectKey $key): ?ObjectInfo
+    {
+        return null;
+    }
+
     public function listObjects(?ObjectKey $after, int $limit): ObjectPage
     {
         return new ObjectPage([], null);
@@ -69,6 +77,19 @@ final class RecordingObjectStorage implements ObjectStorageInterface
         if ($this->failDelete) {
             throw new StorageException('simulated compensation failure');
         }
+    }
+}
+
+final class RecordingObjectMutationLock implements ObjectMutationLockInterface
+{
+    /** @var list<string> */
+    public array $keys = [];
+
+    public function synchronized(ObjectKey $key, Closure $operation): mixed
+    {
+        $this->keys[] = $key->value;
+
+        return $operation();
     }
 }
 
@@ -125,15 +146,36 @@ function pendingUpload(string $documentHex, string $revisionHex, string $digestH
 $database = uploadServiceDatabase();
 $documents = new PdoFileDocumentStore($database);
 $successfulStorage = new RecordingObjectStorage(true);
+$successfulLock = new RecordingObjectMutationLock();
 $successfulUpload = pendingUpload(
     '00112233445566778899aabbccddeeff',
     '11112222333344445555666677778888',
     str_repeat('ab', 32),
     '성공.webp',
 );
-(new FileUploadService($successfulStorage, $documents))->upload($successfulUpload);
+(new FileUploadService($successfulStorage, $documents, $successfulLock))->upload($successfulUpload);
 if (count($successfulStorage->stored) !== 1 || $successfulStorage->deleted !== []) {
     failFileUploadServiceTest('A successful upload should store once without compensation.');
+}
+if ($successfulLock->keys !== [$successfulUpload->objectKey->value]) {
+    failFileUploadServiceTest('The whole upload workflow should run inside its object-key lock.');
+}
+
+$sqliteLockDatabase = uploadServiceDatabase();
+$sqliteLockDocuments = new PdoFileDocumentStore($sqliteLockDatabase);
+$sqliteLockUpload = pendingUpload(
+    '12121212121212121212121212121212',
+    '34343434343434343434343434343434',
+    str_repeat('ac', 32),
+    'SQLite 잠금.webp',
+);
+(new FileUploadService(
+    new RecordingObjectStorage(true),
+    $sqliteLockDocuments,
+    new PdoObjectMutationLock($sqliteLockDatabase),
+))->upload($sqliteLockUpload);
+if (!$sqliteLockDocuments->hasDigest($sqliteLockUpload->metadata->sha256) || $sqliteLockDatabase->inTransaction()) {
+    failFileUploadServiceTest('SQLite uploads should join and commit the object lock transaction.');
 }
 
 $database->exec("INSERT INTO document (uuid, namespace, title) VALUES (X'22223333444455556666777788889999', '파일', '제목 충돌.webp')");
@@ -145,7 +187,7 @@ $conflictingUpload = pendingUpload(
     '제목 충돌.webp',
 );
 try {
-    (new FileUploadService($cleanupStorage, $documents))->upload($conflictingUpload);
+    (new FileUploadService($cleanupStorage, $documents, new RecordingObjectMutationLock()))->upload($conflictingUpload);
     failFileUploadServiceTest('A database title conflict should fail the upload.');
 } catch (PressDo\App\Services\Document\DocumentConflictException) {
 }
@@ -155,7 +197,7 @@ if ($cleanupStorage->deleted !== [$conflictingUpload->objectKey->value]) {
 
 $duplicateStorage = new RecordingObjectStorage(false);
 try {
-    (new FileUploadService($duplicateStorage, $documents))->upload(pendingUpload(
+    (new FileUploadService($duplicateStorage, $documents, new RecordingObjectMutationLock()))->upload(pendingUpload(
         '55556666777788889999aaaabbbbcccc',
         '6666777788889999aaaabbbbccccdddd',
         str_repeat('ab', 32),
@@ -185,7 +227,7 @@ $raceStorage = new RecordingObjectStorage(true, onStore: static function () use 
     $insertFile->execute([$raceOwnerId, uploadServiceBinary($raceDigestHex, 32)]);
 });
 try {
-    (new FileUploadService($raceStorage, $raceDocuments))->upload(pendingUpload(
+    (new FileUploadService($raceStorage, $raceDocuments, new RecordingObjectMutationLock()))->upload(pendingUpload(
         '88889999aaaabbbbccccddddeeeeffff',
         '9999aaaabbbbccccddddeeeeffff0000',
         $raceDigestHex,
@@ -200,7 +242,7 @@ if ($raceStorage->deleted !== []) {
 
 $compensationStorage = new RecordingObjectStorage(true, true);
 try {
-    (new FileUploadService($compensationStorage, $documents))->upload(pendingUpload(
+    (new FileUploadService($compensationStorage, $documents, new RecordingObjectMutationLock()))->upload(pendingUpload(
         'aaaabbbbccccddddeeeeffff00001111',
         'bbbbccccddddeeeeffff000011112222',
         str_repeat('ef', 32),

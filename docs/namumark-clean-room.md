@@ -4,6 +4,9 @@ PressDoWiki ships its own NamuMark-compatible renderer. It does not copy or
 translate an AGPL parser, and contributors implementing this module must not use
 third-party parser source code as a reference. Compatibility is derived from
 publicly observable syntax behaviour and new tests written for this repository.
+The repository-wide contribution rules are recorded in
+`docs/clean-room-policy.md`, and the machine-readable component declaration is
+`config/clean-room-components.json`.
 
 ## Compatibility order
 

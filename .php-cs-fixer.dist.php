@@ -27,6 +27,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/Http',
         __DIR__.'/tests/Mark',
         __DIR__.'/tests/Admin',
+        __DIR__.'/tests/Compliance',
     ])
     ->append([
         __DIR__.'/App/Controllers/Pages/admin/Config.php',

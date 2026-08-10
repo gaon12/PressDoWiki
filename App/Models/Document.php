@@ -11,7 +11,6 @@ use PressDo\App\Services\Document\DocumentRevision;
 use PressDo\App\Services\Document\PdoDocumentContentStore;
 use PressDo\App\Services\Document\PdoDocumentDeletionStore;
 use PressDo\App\Services\Document\PdoDocumentMoveStore;
-use PressDo\App\Services\Document\PdoDocumentRevisionStore;
 
 class Document extends \PressDo\App\Core\Model
 {
@@ -79,6 +78,8 @@ class Document extends \PressDo\App\Core\Model
     /** Restore a deleted document and append its new content in one transaction. */
     public static function recreateWithContent(
         string $uuid,
+        string $namespace,
+        string $title,
         string $content,
         string $comment,
         ?string $cont_m,
@@ -94,19 +95,63 @@ class Document extends \PressDo\App\Core\Model
             $cont_i = self::uuid2bin($cont_i);
 
         try {
-            (new PdoDocumentContentStore($db))->recreate(new DocumentRevision(
-                revisionId: self::uuid2bin(self::generateUuid()),
-                documentId: $documentId,
-                content: $content,
-                comment: $comment,
-                action: 'create',
-                revision: $baserev + 1,
-                lengthDelta: mb_strlen($content, 'UTF-8'),
-                contributorMemberId: $cont_m,
-                contributorIpId: $cont_i,
-            ));
+            (new PdoDocumentContentStore($db))->recreate(
+                $namespace,
+                $title,
+                $baserev,
+                new DocumentRevision(
+                    revisionId: self::uuid2bin(self::generateUuid()),
+                    documentId: $documentId,
+                    content: $content,
+                    comment: $comment,
+                    action: 'create',
+                    revision: $baserev + 1,
+                    lengthDelta: mb_strlen($content, 'UTF-8'),
+                    contributorMemberId: $cont_m,
+                    contributorIpId: $cont_i,
+                ),
+            );
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 삭제 문서 재생성 중 오류 발생', previous: $err);
+        }
+    }
+
+    /** Attach the first content revision to an ACL-created placeholder document. */
+    public static function initializeWithContent(
+        string $uuid,
+        string $namespace,
+        string $title,
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+    ): void {
+        $db = self::db();
+        $documentId = self::uuid2bin($uuid);
+
+        if($cont_m !== null)
+            $cont_m = self::uuid2bin($cont_m);
+        elseif($cont_i !== null)
+            $cont_i = self::uuid2bin($cont_i);
+
+        try {
+            (new PdoDocumentContentStore($db))->initialize(
+                $namespace,
+                $title,
+                new DocumentRevision(
+                    revisionId: self::uuid2bin(self::generateUuid()),
+                    documentId: $documentId,
+                    content: $content,
+                    comment: $comment,
+                    action: 'create',
+                    revision: 1,
+                    lengthDelta: mb_strlen($content, 'UTF-8'),
+                    contributorMemberId: $cont_m,
+                    contributorIpId: $cont_i,
+                ),
+            );
+        } catch (PDOException $err) {
+            throw new ErrorException($err->getMessage().': 문서 첫 리비전 저장 중 오류 발생', previous: $err);
         }
     }
 
@@ -171,17 +216,28 @@ class Document extends \PressDo\App\Core\Model
     /**
      * Save edited Document
      * @param string $uuid
+     * @param string $namespace
+     * @param string $title
      * @param string $content
      * @param string $comment
      * @param ?string $cont_m
      * @param ?string $cont_i
      * @param int $baserev
      * @param int $prevlen
-     * @param string $action
      * @throws ErrorException
      * @return void
      */
-    public static function save(string $uuid, string $content, string $comment, ?string $cont_m, ?string $cont_i, int $baserev, int $prevlen, string $action): void
+    public static function save(
+        string $uuid,
+        string $namespace,
+        string $title,
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+        int $baserev,
+        int $prevlen,
+    ): void
     {
         $db = self::db();
         $lengthDelta = mb_strlen($content, 'UTF-8') - $prevlen;
@@ -194,17 +250,22 @@ class Document extends \PressDo\App\Core\Model
         $documentId = self::uuid2bin($uuid);
 
         try {
-            (new PdoDocumentRevisionStore($db))->append(new DocumentRevision(
-                revisionId: self::uuid2bin(self::generateUuid()),
-                documentId: $documentId,
-                content: $content,
-                comment: $comment,
-                action: $action,
-                revision: $baserev + 1,
-                lengthDelta: $lengthDelta,
-                contributorMemberId: $cont_m,
-                contributorIpId: $cont_i,
-            ));
+            (new PdoDocumentContentStore($db))->edit(
+                $namespace,
+                $title,
+                $baserev,
+                new DocumentRevision(
+                    revisionId: self::uuid2bin(self::generateUuid()),
+                    documentId: $documentId,
+                    content: $content,
+                    comment: $comment,
+                    action: 'modify',
+                    revision: $baserev + 1,
+                    lengthDelta: $lengthDelta,
+                    contributorMemberId: $cont_m,
+                    contributorIpId: $cont_i,
+                ),
+            );
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 문서 편집 저장 중 오류 발생', previous: $err);
         }

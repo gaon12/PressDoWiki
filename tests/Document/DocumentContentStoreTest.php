@@ -58,6 +58,23 @@ function contentRevision(
     );
 }
 
+function modifyRevision(
+    string $documentId,
+    string $revisionHex,
+    string $content,
+    int $revision,
+): DocumentRevision {
+    return new DocumentRevision(
+        revisionId: contentTestId($revisionHex),
+        documentId: $documentId,
+        content: $content,
+        comment: 'modified',
+        action: 'modify',
+        revision: $revision,
+        lengthDelta: 1,
+    );
+}
+
 $store = new PdoDocumentContentStore($database);
 $createdId = contentTestId('00112233445566778899aabbccddeeff');
 $store->create('문서', '새 문서', contentRevision(
@@ -78,6 +95,80 @@ if ($created !== [
     'rev' => 1,
 ]) {
     failDocumentContentStoreTest('Creating content should persist the document and initial revision together.');
+}
+
+$store->edit('문서', '새 문서', 1, modifyRevision(
+    $createdId,
+    '12112222333344445555666677778888',
+    '수정 본문',
+    2,
+));
+$edited = $database->prepare('SELECT content FROM history WHERE document=? ORDER BY rev DESC LIMIT 1');
+$edited->execute([$createdId]);
+if ($edited->fetchColumn() !== '수정 본문') {
+    failDocumentContentStoreTest('Editing should append content after the expected base revision.');
+}
+
+try {
+    $store->edit('문서', '새 문서', 1, modifyRevision(
+        $createdId,
+        '13112222333344445555666677778888',
+        '오래된 수정',
+        2,
+    ));
+    failDocumentContentStoreTest('An edit based on an old revision should fail.');
+} catch (PressDo\App\Services\Document\DocumentConflictException) {
+}
+$createdHistoryCount = $database->prepare('SELECT COUNT(*) FROM history WHERE document=?');
+$createdHistoryCount->execute([$createdId]);
+if ((int) $createdHistoryCount->fetchColumn() !== 2) {
+    failDocumentContentStoreTest('A stale edit must not append another revision.');
+}
+
+try {
+    $store->create('문서', '새 문서', contentRevision(
+        contentTestId('17112222333344445555666677778888'),
+        '18112222333344445555666677778888',
+        '제목 충돌 본문',
+    ));
+    failDocumentContentStoreTest('Creating a document at an occupied location should report a conflict.');
+} catch (PressDo\App\Services\Document\DocumentConflictException) {
+}
+
+try {
+    $store->edit('문서', '이전 제목', 2, modifyRevision(
+        $createdId,
+        '14112222333344445555666677778888',
+        '잘못된 위치 수정',
+        3,
+    ));
+    failDocumentContentStoreTest('An edit at a stale title should fail.');
+} catch (PressDo\App\Services\Document\DocumentConflictException) {
+}
+
+$placeholderId = contentTestId('15112222333344445555666677778888');
+$insertPlaceholder = $database->prepare(
+    "INSERT INTO document (uuid, namespace, title, status, backlink_updated) VALUES (?, '문서', 'ACL 자리', 'normal', 0)",
+);
+$insertPlaceholder->execute([$placeholderId]);
+$store->initialize('문서', 'ACL 자리', contentRevision(
+    $placeholderId,
+    '16112222333344445555666677778888',
+    '첫 실제 본문',
+));
+$placeholderRevision = $database->prepare('SELECT content, rev FROM history WHERE document=?');
+$placeholderRevision->execute([$placeholderId]);
+if ($placeholderRevision->fetch(PDO::FETCH_ASSOC) !== ['content' => '첫 실제 본문', 'rev' => 1]) {
+    failDocumentContentStoreTest('An ACL-created placeholder should accept exactly one initial content revision.');
+}
+try {
+    $store->initialize('문서', 'ACL 자리', contentRevision(
+        $placeholderId,
+        '19112222333344445555666677778888',
+        '중복 첫 본문',
+    ));
+    failDocumentContentStoreTest('A placeholder must not be initialized twice.');
+} catch (PressDo\App\Services\Document\DocumentConflictException) {
 }
 
 $database->exec(<<<'SQL'
@@ -111,7 +202,11 @@ $insertDeleted = $database->prepare(
     "INSERT INTO document (uuid, namespace, title, status, backlink_updated) VALUES (?, '문서', ?, 'delete', 1)",
 );
 $insertDeleted->execute([$recreateId, '삭제 문서']);
-$store->recreate(contentRevision(
+$insertPriorRevision = $database->prepare(
+    "INSERT INTO history (uuid, document, content, comment, action, rev, count) VALUES (?, ?, NULL, 'deleted', 'delete', ?, 0)",
+);
+$insertPriorRevision->execute([contentTestId('434455556666777788889999aaaabbbb'), $recreateId, 2]);
+$store->recreate('문서', '삭제 문서', 2, contentRevision(
     $recreateId,
     '55556666777788889999aaaabbbbcccc',
     '복구 본문',
@@ -125,8 +220,9 @@ if ($recreated->fetch(PDO::FETCH_ASSOC) !== ['status' => 'normal', 'backlink_upd
 
 $rejectedRecreateId = contentTestId('6666777788889999aaaabbbbccccdddd');
 $insertDeleted->execute([$rejectedRecreateId, '복구 롤백']);
+$insertPriorRevision->execute([contentTestId('6566777788889999aaaabbbbccccdddd'), $rejectedRecreateId, 3]);
 try {
-    $store->recreate(contentRevision(
+    $store->recreate('문서', '복구 롤백', 3, contentRevision(
         $rejectedRecreateId,
         '777788889999aaaabbbbccccddddeeee',
         '복구 실패 본문',
@@ -170,7 +266,7 @@ if ($modelDocument->fetchColumn() !== 'normal') {
 }
 
 $database->prepare("UPDATE document SET status='delete', backlink_updated=1 WHERE uuid=?")->execute([$modelId]);
-Document::recreateWithContent($modelUuid, '다시 만든 본문', 'model recreate', null, null, 1);
+Document::recreateWithContent($modelUuid, '문서', '모델 생성', '다시 만든 본문', 'model recreate', null, null, 1);
 $modelDocument->execute([$modelId]);
 if ($modelDocument->fetchColumn() !== 'normal') {
     failDocumentContentStoreTest('Document::recreateWithContent should restore status with its revision.');

@@ -23,7 +23,7 @@ if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
 
 $database = new PDO('sqlite::memory:');
 $database->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$database->exec('CREATE TABLE document (uuid BLOB PRIMARY KEY, backlink_updated INTEGER NOT NULL DEFAULT 1)');
+$database->exec("CREATE TABLE document (uuid BLOB PRIMARY KEY, namespace TEXT NOT NULL DEFAULT '문서', title TEXT NOT NULL DEFAULT '테스트', status TEXT NOT NULL DEFAULT 'normal', backlink_updated INTEGER NOT NULL DEFAULT 1)");
 $database->exec(
     'CREATE TABLE history (uuid BLOB PRIMARY KEY, document BLOB NOT NULL, content TEXT, comment TEXT NOT NULL, action TEXT NOT NULL, rev INTEGER NOT NULL, count INTEGER NOT NULL, contributor_m BLOB, contributor_i BLOB, edit_request_uri TEXT, moved_from TEXT, moved_to TEXT)',
 );
@@ -115,11 +115,15 @@ if ((int) $database->query('SELECT COUNT(*) FROM history')->fetchColumn() !== 0)
 }
 
 (new ReflectionProperty(Model::class, 'db'))->setValue(null, $database);
-Document::save($documentUuid, '일반 편집', 'saved', null, null, 1, 0, 'modify');
+$database->prepare(
+    "INSERT INTO history (uuid, document, content, comment, action, rev, count) VALUES (?, ?, '기존 본문', 'initial', 'create', 1, 5)",
+)->execute([hex2bin('abababababababababababababababab'), $documentId]);
+Document::save($documentUuid, '문서', '테스트', '일반 편집', 'saved', null, null, 1, 0);
 if ((int) $database->query('SELECT backlink_updated FROM document')->fetchColumn() !== 0) {
     failDocumentRevisionStoreTest('Document::save should invalidate derived indexes through the revision store.');
 }
-if ($database->query('SELECT action FROM history')->fetchColumn() !== 'modify') {
+$latestAction = $database->query('SELECT action FROM history ORDER BY rev DESC LIMIT 1')->fetchColumn();
+if ($latestAction !== 'modify') {
     failDocumentRevisionStoreTest('Document::save should append the requested history action.');
 }
 

@@ -37,6 +37,7 @@ try {
                     'orphan_items' => [[
                         'object_key' => 'cd/' . str_repeat('cd', 32) . '.gif',
                         'last_modified' => '2026-08-01 00:00:00',
+                        'last_modified_epoch' => 1_800_000_000,
                         'age_hours' => 48,
                         'size' => 123,
                     ]],
@@ -44,18 +45,25 @@ try {
                     'ignored_recent' => 2,
                     'ignored_unmanaged' => 1,
                     'next_object_cursor' => 'ef/' . str_repeat('ef', 32) . '.png',
+                    'cleanup_token' => '\"><script>alert(2)</script>',
+                    'action_error' => null,
+                    'deleted_object' => null,
                     'error' => null,
                 ],
             ],
         ],
     ]);
 
-    if (str_contains($html, '<script>alert(1)</script>')) {
+    if (str_contains($html, '<script>alert(1)</script>') || str_contains($html, '<script>alert(2)</script>')) {
         failAdminStorageIntegrityTemplateTest('Integrity report values must be HTML-escaped.');
     }
     if (
         !str_contains($html, 'data-integrity-state="missing"')
         || !str_contains($html, 'data-orphan-candidate')
+        || !str_contains($html, 'data-orphan-cleanup')
+        || !str_contains($html, 'name="confirm_key"')
+        || !str_contains($html, 'maxlength="80"')
+        || !str_contains($html, 'name="last_modified" value="1800000000"')
         || !str_contains($html, 'offset=25')
         || !str_contains($html, 'object_cursor=')
     ) {

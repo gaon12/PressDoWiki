@@ -23,6 +23,7 @@
 			"php tests/MarkHandlerTest.php",
 			"php tests/MediaWikiInterwikiTest.php",
 			"php tests/RequestTest.php",
+			"php tests/Rendering/BladeTemplateRendererTest.php",
 			"php tests/SchemaCompatibilityTest.php"
 		],
 		"check": [
@@ -40,6 +41,7 @@
 		"geoip2/geoip2": "~2.0",
 		"spomky-labs/otphp": "^11.3",
 		"endroid/qr-code": "^6.0",
+		"illuminate/view": "^12.0",
 		"lbuchs/webauthn": "^2.2",
 		"aws/aws-sdk-php": "^3.339",
 		"meyfa/php-svg": "^0.16.0",

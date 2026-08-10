@@ -184,6 +184,7 @@
         "aclerr_in_aclgroup": "ACL그룹 %7$s #%4$s에 있기 때문에 %1$s 권한이 부족합니다.<br>만료일 : %5$s<br>사유 : %6$s",
         "please_agree": "수정하기 전에 먼저 문서 배포 규정에 동의해 주세요.",
         "err_same_contents": "문서 내용이 같습니다.",
+        "err_edit_conflict": "편집을 시작한 뒤 문서가 변경되었습니다. 최신 내용을 확인한 후 다시 저장해 주세요.",
         "err_csrf_token": "CSRF 방지 토큰이 일치하지 않습니다.",
         "err_mail_whitelist": "이메일 허용 목록에 있는 이메일이 아닙니다.",
         "err_already_sent": "해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.",

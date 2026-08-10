@@ -5,6 +5,7 @@ use PressDo\App\Models\{Document,Member};
 use PressDo\App\Core\Controller;
 use PressDo\App\Controllers\ACL as WikiACL;
 use PressDo\App\Helpers\{Languages,Namespaces};
+use PressDo\App\Services\Document\DocumentConflictException;
 
 class Edit extends Controller
 {
@@ -55,53 +56,105 @@ class Edit extends Controller
                 $this->session['uuid'] = $ip;
             }
 
-            $action = $this->session['baserev'] === 0 ? 'create' : 'modify';
-            
-            if (!$uuid) {
-                $uuid = Document::createWithContent(
-                    $namespace,
-                    $title,
-                    $this->content,
-                    $_POST['comment'],
-                    $member,
-                    $ip,
-                );
-            } else {
-                $this->session['baserev'] = Document::getVersion($uuid);
-                if ($action === 'create') {
-                    Document::recreateWithContent(
-                        $uuid,
-                        $this->content,
-                        $_POST['comment'],
-                        $member,
-                        $ip,
-                        $this->session['baserev'],
-                    );
-                } else {
-                    Document::save(
-                        $uuid,
-                        $this->content,
-                        $_POST['comment'],
-                        $member,
-                        $ip,
-                        $this->session['baserev'],
-                        iconv_strlen($this->session['raw']),
-                        'modify',
-                    );
-                }
-            }
+            $baseState = $this->session['edit_base_state'] ?? null;
+            $baseUuid = $this->session['edit_base_uuid'] ?? null;
+            $baseRevision = $this->session['baserev'] ?? null;
 
-            Header('Location: /w/'.$this->uri_data->title);
-            unset($this->session['edittoken'], $this->session['baserev'], $this->session['raw']);
-            $_SESSION = $this->session;
-            exit;
+            try {
+                if (!is_string($baseState) || !is_int($baseRevision)) {
+                    throw new DocumentConflictException('The editor base state is missing.');
+                }
+
+                if ($baseState === 'missing') {
+                    $uuid = Document::createWithContent(
+                        $namespace,
+                        $title,
+                        $this->content,
+                        $_POST['comment'],
+                        $member,
+                        $ip,
+                    );
+                } elseif (!is_string($baseUuid)) {
+                    throw new DocumentConflictException('The editor base document ID is missing.');
+                } elseif ($baseState === 'placeholder') {
+                    Document::initializeWithContent(
+                        $baseUuid,
+                        $namespace,
+                        $title,
+                        $this->content,
+                        $_POST['comment'],
+                        $member,
+                        $ip,
+                    );
+                    $uuid = $baseUuid;
+                } elseif ($baseState === 'deleted') {
+                    Document::recreateWithContent(
+                        $baseUuid,
+                        $namespace,
+                        $title,
+                        $this->content,
+                        $_POST['comment'],
+                        $member,
+                        $ip,
+                        $baseRevision,
+                    );
+                    $uuid = $baseUuid;
+                } elseif ($baseState === 'normal') {
+                    Document::save(
+                        $baseUuid,
+                        $namespace,
+                        $title,
+                        $this->content,
+                        $_POST['comment'],
+                        $member,
+                        $ip,
+                        $baseRevision,
+                        iconv_strlen($this->session['raw']),
+                    );
+                    $uuid = $baseUuid;
+                } else {
+                    throw new DocumentConflictException('The editor base state is invalid.');
+                }
+
+                Header('Location: /w/'.$this->uri_data->title);
+                unset(
+                    $this->session['edittoken'],
+                    $this->session['edit_base_state'],
+                    $this->session['edit_base_uuid'],
+                    $this->session['baserev'],
+                    $this->session['raw'],
+                );
+                $_SESSION = $this->session;
+                exit;
+            } catch (DocumentConflictException) {
+                $this->error = self::makeErrorBox('err_edit_conflict');
+            }
         }
 
-        $doc = Document::load($uuid);
+        $doc = $uuid ? Document::load($uuid) : null;
+        if (!$uuid) {
+            $baseState = 'missing';
+            $baseRevision = 0;
+            $rawContent = '';
+        } elseif ($doc === null) {
+            $baseState = 'placeholder';
+            $baseRevision = 0;
+            $rawContent = '';
+        } elseif ($doc['status'] === 'delete') {
+            $baseState = 'deleted';
+            $baseRevision = Document::getVersion($uuid);
+            $rawContent = '';
+        } else {
+            $baseState = 'normal';
+            $baseRevision = Document::getVersion($uuid);
+            $rawContent = is_string($doc['content']) ? $doc['content'] : '';
+        }
 
-        $this->session['baserev'] = $doc['status'] !== 'delete' && $uuid ? Document::getVersion($uuid) : 0;
-        $this->session['raw'] = $uuid ? $doc['content'] : '';
-        $section = $_GET['section'];
+        $this->session['edit_base_state'] = $baseState;
+        $this->session['edit_base_uuid'] = $uuid ?: null;
+        $this->session['baserev'] = $baseRevision;
+        $this->session['raw'] = $rawContent;
+        $section = $_GET['section'] ?? null;
 
         $page = [
             'view_name' => 'edit',

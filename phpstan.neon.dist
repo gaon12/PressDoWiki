@@ -3,6 +3,7 @@ parameters:
     paths:
         - App/Admin/Settings
         - App/Services/Backlink
+        - App/Services/Search
         - App/Controllers/Pages/admin/Config.php
         - App/Controllers/Pages/api/Preview.php
         - App/Core/Request.php
@@ -24,6 +25,7 @@ parameters:
         - App/Services/Mark/MarkupLinks.php
         - App/Services/Mark/MarkupResult.php
         - App/Models/Backlink.php
+        - App/Models/Search.php
         - App/Services/Mark/NamuMark
         - App/Shared/Rendering
         - App/Update

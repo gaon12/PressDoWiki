@@ -4,8 +4,10 @@ namespace PressDo\App\Controllers\Pages;
 
 use PressDo\App\Core\Controller;
 use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
+use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Models\{Document, Files, Member};
 use PressDo\App\Services\File\DuplicateFileException;
+use PressDo\App\Services\File\UploadDescription;
 use PressDo\App\Services\File\UploadedFile;
 use PressDo\App\Services\File\UploadedImage;
 use PressDo\App\Services\File\UploadedImageInspector;
@@ -23,38 +25,65 @@ class Upload extends Controller
             $error = 'err_file_upload_disabled';
         }
 
+        $imageLicense = Languages::get('image_license');
+        if (!is_string($imageLicense)) {
+            throw new RuntimeException('The image license namespace label is not configured.');
+        }
+        $dataset = Document::getLicensesAndCategories();
+        $licenses = [];
+        foreach ($dataset['License'] as $license) {
+            $licenses[] = substr($license['title'], strlen($imageLicense . '/'));
+        }
+        $categories = [];
+        foreach ($dataset['Category'] as $category) {
+            $categories[] = substr($category['title'], strlen(Namespaces::file() . '/'));
+        }
+
+        $csrf = new CsrfTokenManager();
+        $uploadToken = $csrf->issue($this->session, 'uploadtoken');
+
         $submittedDocument = $_POST['document'] ?? null;
         if (is_string($submittedDocument) && $submittedDocument !== '' && array_key_exists('file', $_FILES)) {
             [$namespace, $title] = self::parseTitle($submittedDocument);
             $image = null;
+            $description = null;
+            if ($error === null && !$csrf->validate($this->session, 'uploadtoken', $_POST['token'] ?? null)) {
+                $error = 'err_csrf_token';
+            }
             try {
                 $uploadedFile = UploadedFile::fromPhpFiles($_FILES['file']);
                 $image = (new UploadedImageInspector())->inspect($uploadedFile, $submittedDocument);
+                $description = UploadDescription::fromInput(
+                    $_POST['license'] ?? null,
+                    $_POST['category'] ?? null,
+                    $_POST['text'] ?? null,
+                    $licenses,
+                    $categories,
+                );
             } catch (UploadValidationException $validationError) {
-                $error = $validationError->messageKey;
+                if ($error === null) {
+                    $error = $validationError->messageKey;
+                }
             }
 
             // 이름공간 오류
-            if ($namespace !== Namespaces::file()) {
+            if ($error === null && $namespace !== Namespaces::file()) {
                 $error = 'err_invalid_file_namespace';
             }
 
             // 문서 중복
-            if (Document::getUuid($namespace, $title)) {
+            if ($error === null && Document::getUuid($namespace, $title)) {
                 $error = 'err_document_exists';
             }
 
             // 정상 처리
-            if ($error === null && $image instanceof UploadedImage) {
-                $license = self::postString('license');
-                $category = self::postString('category');
-                $text = self::postString('text');
-                $imageLicense = Languages::get('image_license');
-                if (!is_string($imageLicense)) {
-                    throw new RuntimeException('The image license namespace label is not configured.');
-                }
-                $content = '[include(' . Namespaces::template() . ':' . $imageLicense . '/' . $license . ")]\n"
-                    . '[[' . Namespaces::category() . ':' . Namespaces::file() . '/' . $category . "]]\n" . $text;
+            if ($error === null && $image instanceof UploadedImage && $description instanceof UploadDescription) {
+                $content = $description->wikiText(
+                    Namespaces::template(),
+                    $imageLicense,
+                    Namespaces::category(),
+                    Namespaces::file(),
+                );
 
                 $sessionUuid = self::sessionString($this->session, 'uuid');
                 $member = !empty($this->session['member']) ? $sessionUuid : null;
@@ -90,6 +119,8 @@ class Upload extends Controller
                         $image->height,
                     );
 
+                    $csrf->consume($this->session, 'uploadtoken');
+                    unset($_SESSION['uploadtoken']);
                     Header('Location: /w/' . $submittedDocument);
                     exit;
                 } catch (DuplicateFileException) {
@@ -100,19 +131,6 @@ class Upload extends Controller
             }
         }
 
-        $dataset = Document::getLicensesAndCategories();
-        $imageLicense = Languages::get('image_license');
-        if (!is_string($imageLicense)) {
-            throw new RuntimeException('The image license namespace label is not configured.');
-        }
-        $licenses = [];
-        foreach ($dataset['License'] as $license) {
-            $licenses[] = substr($license['title'], strlen($imageLicense . '/'));
-        }
-        $categories = [];
-        foreach ($dataset['Category'] as $category) {
-            $categories[] = substr($category['title'], strlen(Namespaces::file() . '/'));
-        }
         $pageLabels = Languages::get('page');
         $pageTitle = is_array($pageLabels) && is_string($pageLabels['Upload'] ?? null)
             ? $pageLabels['Upload']
@@ -123,6 +141,7 @@ class Upload extends Controller
             'data' => [
                 'Licenses' => $licenses,
                 'Categories' => $categories,
+                'token' => $uploadToken,
             ],
             'menus' => [],
             'customData' => [],

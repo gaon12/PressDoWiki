@@ -1,8 +1,9 @@
 <div n:if="$error['errbox']" class="a e">
     <strong>{$lang['msg']['error']}</strong>
-    <span>{$error['message']|noescape}</span>
+    <span>{$error['message']}</span>
 </div>
 <form id="uploadForm" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="token" value="{$wiki['page']['data']['token']}">
     <input type="hidden" name="MAX_FILE_SIZE" value="10000000">
     <input type="hidden" name="baserev" value="0">
     <input type="hidden" name="baseuuid" value="create">

@@ -176,8 +176,8 @@ class EditRequest extends Controller
                     $erdata['content'],
                     Languages::get('page', 'edit_request').' '.$this->uri_data->title
                 ),
-                'editor_comment' => $content['editor_comment'],
-                'preview' => $content['html'],
+                'editor_comment' => $content->editorComment,
+                'preview' => $content->html,
                 'user' => $erdata['namespace'] == Namespaces::user()
             //   'customData' => $ad_set
             ]

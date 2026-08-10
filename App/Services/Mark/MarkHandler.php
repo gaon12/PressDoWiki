@@ -16,9 +16,8 @@ class MarkHandler
 
     /**
      * @param array<string, mixed> $options
-     * @return array<string, mixed>
      */
-    public static function load(string $content, array $options): array
+    public static function load(string $content, array $options): MarkupResult
     {
         $mark = Config::get('wiki.mark');
         if (!is_string($mark) || $mark === '') {
@@ -46,6 +45,6 @@ class MarkHandler
             $output[$key] = $value;
         }
 
-        return $output;
+        return MarkupResult::fromLoaderResult($output);
     }
 }

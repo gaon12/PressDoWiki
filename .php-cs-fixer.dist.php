@@ -32,6 +32,8 @@ $finder = PhpCsFixer\Finder::create()
     ->append([
         __DIR__.'/App/Controllers/Pages/admin/Config.php',
         __DIR__.'/App/Services/Mark/MarkHandler.php',
+        __DIR__.'/App/Services/Mark/MarkupLinks.php',
+        __DIR__.'/App/Services/Mark/MarkupResult.php',
         __DIR__.'/tests/GeoIpTest.php',
         __DIR__.'/tests/ViewSkinTest.php',
     ]);

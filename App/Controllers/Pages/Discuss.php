@@ -67,7 +67,7 @@ class Discuss extends Controller
                     if ($c['type'] == 'status' || $c['type'] == 'topic' || $c['type'] == 'document')
                         $cont = $c['content'];
                     else
-                        $cont = self::readSyntax($c['content'], ['thread' => true]);
+                        $cont = self::readSyntax($c['content'], ['thread' => true])->html;
                     $blocked = ($c['hide_author']);
 
                     $contr = explode(':', $c['contributor']);

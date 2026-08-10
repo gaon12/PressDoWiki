@@ -29,6 +29,11 @@ footnotes, macros, includes, files, syntax highlighting, and parameterized
 styling remain unsupported until their grammar and resource limits are
 specified and tested.
 
+Heading output uses nested `wiki-heading-content` wrappers. A child heading is
+inside its parent's wrapper, while a heading at the same or a higher level
+closes the preceding section. This keeps the HTML hierarchy valid and provides
+the immediate-sibling contract used by the bundled skin's section folding.
+
 ## Security invariants
 
 - Source text never becomes raw HTML.

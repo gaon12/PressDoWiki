@@ -34,6 +34,16 @@ try {
                     'limit' => 25,
                     'previous_offset' => null,
                     'next_offset' => 25,
+                    'orphan_items' => [[
+                        'object_key' => 'cd/' . str_repeat('cd', 32) . '.gif',
+                        'last_modified' => '2026-08-01 00:00:00',
+                        'age_hours' => 48,
+                        'size' => 123,
+                    ]],
+                    'orphan_scanned' => 25,
+                    'ignored_recent' => 2,
+                    'ignored_unmanaged' => 1,
+                    'next_object_cursor' => 'ef/' . str_repeat('ef', 32) . '.png',
                     'error' => null,
                 ],
             ],
@@ -43,7 +53,12 @@ try {
     if (str_contains($html, '<script>alert(1)</script>')) {
         failAdminStorageIntegrityTemplateTest('Integrity report values must be HTML-escaped.');
     }
-    if (!str_contains($html, 'data-integrity-state="missing"') || !str_contains($html, 'offset=25')) {
+    if (
+        !str_contains($html, 'data-integrity-state="missing"')
+        || !str_contains($html, 'data-orphan-candidate')
+        || !str_contains($html, 'offset=25')
+        || !str_contains($html, 'object_cursor=')
+    ) {
         failAdminStorageIntegrityTemplateTest('The report should render status and bounded pagination controls.');
     }
 } finally {

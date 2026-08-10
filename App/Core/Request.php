@@ -53,6 +53,19 @@ final class Request
         return $this->stringFrom($this->post, $key, $default);
     }
 
+    /**
+     * Return a scalar POST field while preserving an intentionally empty value.
+     * Missing fields and array-shaped input are rejected with null.
+     */
+    public function postScalarString(string $key): ?string
+    {
+        if (!array_key_exists($key, $this->post) || !is_scalar($this->post[$key])) {
+            return null;
+        }
+
+        return (string) $this->post[$key];
+    }
+
     public function cookieString(string $key, string $default = ''): string
     {
         return $this->stringFrom($this->cookies, $key, $default);
@@ -61,6 +74,16 @@ final class Request
     public function serverString(string $key, string $default = ''): string
     {
         return $this->stringFrom($this->server, $key, $default);
+    }
+
+    public function method(): string
+    {
+        return strtoupper($this->serverString('REQUEST_METHOD', 'GET'));
+    }
+
+    public function isMethod(string $method): bool
+    {
+        return $this->method() === strtoupper($method);
     }
 
     public function hasPost(string $key): bool

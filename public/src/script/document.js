@@ -25,16 +25,6 @@ v = {
     n: (e) => SH(g(e),'none')
 }
 
-// KaTeX
-document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-        delimiters: [
-            { left: "[math(", right: ")]", display: false },
-            { left: "<math>", right: "</math>", display: false },
-        ],
-    })
-})
-
 // 문단 접기
 qa('.w .wiki-heading').forEach(r => {
     e(r, 'click', () => {
@@ -70,4 +60,4 @@ qa('.w dl.wiki-folding dt').forEach(r => {
 
         //s.style.cssText = ''
     })
-})  
+})

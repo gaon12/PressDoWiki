@@ -1,25 +1,36 @@
 <?php
+
+declare(strict_types=1);
+
 namespace PressDo\App\Controllers\Pages\api;
 
+use InvalidArgumentException;
+use LengthException;
 use PressDo\App\Core\Controller;
-//use PressDo\App\Helpers\Database;
-use PressDo\App\Helpers\Namespaces;
+use PressDo\App\Core\Response;
+use PressDo\App\Http\PreviewInput;
 
-class Preview extends Controller
+final class Preview extends Controller
 {
     public function makeData(): never
     {
-        $content = self::readSyntax($_POST['text'], [
-            'title' => $_POST['title'],
-            'namespace' => Namespaces::all(),
-            'thread' => false
+        if (!$this->request->isMethod('POST')) {
+            Response::methodNotAllowed('POST');
+        }
+
+        try {
+            $input = PreviewInput::fromRequest($this->request);
+        } catch (LengthException $error) {
+            Response::text($error->getMessage(), 413);
+        } catch (InvalidArgumentException $error) {
+            Response::text($error->getMessage(), 422);
+        }
+
+        $content = self::readSyntax($input->text, [
+            'title' => $input->title,
+            'thread' => false,
         ]);
-        echo '<link rel="stylesheet" href="/src/style/document.css">
-            <script defer src="/src/script/document.js"></script>
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/+DiW/UqRcLbRjq" crossorigin="anonymous"/>
-            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l+B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd+qj+o24G5ZU2zJz" crossorigin="anonymous"></script>
-            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>';
-        echo $content->html;
-        exit;
+
+        Response::html($content->html);
     }
 }

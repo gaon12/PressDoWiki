@@ -9,7 +9,7 @@ use RuntimeException;
 
 class MarkHandler
 {
-    private const MAX_INPUT_BYTES = 2_097_152;
+    public const MAX_INPUT_BYTES = 2_097_152;
 
     private const MARK_ALIASES = [
         'Namumark' => 'NamuMark',

@@ -16,6 +16,8 @@ final class Renderer
 {
     private const MAX_INPUT_BYTES = 2_097_152;
 
+    private const MAX_INPUT_LINES = 100_000;
+
     /**
      * @return array{
      *     html: string,
@@ -36,6 +38,10 @@ final class Renderer
         }
 
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $source));
+        if (count($lines) > self::MAX_INPUT_LINES) {
+            throw new RuntimeException('NamuMark input exceeds the 100,000-line rendering limit.');
+        }
+
         $links = new LinkCollection();
         $html = (new BlockParser(new InlineRenderer($links)))->render($lines);
         $collectedLinks = $links->all();

@@ -36,6 +36,14 @@ final readonly class InlineRenderer
         return $html;
     }
 
+    /**
+     * Escapes literal block contents without applying any inline syntax.
+     */
+    public function renderLiteral(string $text): string
+    {
+        return $this->escape($text);
+    }
+
     private function renderToken(string $token): string
     {
         if (str_starts_with($token, '[[')) {

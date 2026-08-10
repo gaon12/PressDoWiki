@@ -24,6 +24,7 @@
 			"php tests/MediaWikiInterwikiTest.php",
 			"php tests/RequestTest.php",
 			"php tests/Rendering/BladeTemplateRendererTest.php",
+			"php tests/Rendering/FrameTemplateTest.php",
 			"php tests/SchemaCompatibilityTest.php"
 		],
 		"check": [

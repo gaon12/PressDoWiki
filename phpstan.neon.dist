@@ -3,6 +3,8 @@ parameters:
     paths:
         - App/Core/Request.php
         - App/Core/Response.php
+        - App/Core/Skin.php
+        - App/Core/View.php
         - App/Helpers/Csp.php
         - App/Helpers/RouteControllerResolver.php
         - App/Helpers/SqlDialect.php

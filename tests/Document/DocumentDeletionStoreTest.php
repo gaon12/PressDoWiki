@@ -26,7 +26,7 @@ $database->exec(
     "CREATE TABLE document (uuid BLOB PRIMARY KEY, status TEXT NOT NULL DEFAULT 'normal', backlink_updated INTEGER NOT NULL DEFAULT 0)",
 );
 $database->exec(
-    'CREATE TABLE history (uuid BLOB PRIMARY KEY, document BLOB NOT NULL, content TEXT, comment TEXT NOT NULL, action TEXT NOT NULL, rev INTEGER NOT NULL, count INTEGER NOT NULL, contributor_m BLOB, contributor_i BLOB, edit_request_uri TEXT)',
+    'CREATE TABLE history (uuid BLOB PRIMARY KEY, document BLOB NOT NULL, content TEXT, comment TEXT NOT NULL, action TEXT NOT NULL, rev INTEGER NOT NULL, count INTEGER NOT NULL, contributor_m BLOB, contributor_i BLOB, edit_request_uri TEXT, moved_from TEXT, moved_to TEXT)',
 );
 $database->exec('CREATE TABLE search_index (document BLOB PRIMARY KEY, text TEXT NOT NULL)');
 $database->exec('CREATE TABLE links (namespace TEXT NOT NULL, title TEXT NOT NULL, from_uuid BLOB NOT NULL, type TEXT NOT NULL)');

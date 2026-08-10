@@ -4,20 +4,37 @@ declare(strict_types=1);
 
 namespace PressDo\App\Services\Document;
 
+use InvalidArgumentException;
 use PDO;
 use Throwable;
 
 /**
- * Appends a revision and invalidates every parser-derived index atomically.
+ * Appends document revisions within the caller's transaction boundary.
  *
- * Backlink refresh is the existing durable invalidation flag. The next wiki
- * render uses it to rebuild both backlinks and the full-text search row.
+ * Content revisions invalidate parser-derived indexes for the next wiki
+ * render. Metadata-only revisions, such as moves, retain those indexes because
+ * the parsed content and every outgoing relationship remain unchanged.
  */
 final readonly class PdoDocumentRevisionStore
 {
     public function __construct(private PDO $database) {}
 
     public function append(DocumentRevision $revision): void
+    {
+        $this->persist($revision, true);
+    }
+
+    /** Append a metadata-only revision without rebuilding content-derived indexes. */
+    public function appendMetadata(DocumentRevision $revision): void
+    {
+        if ($revision->content !== null) {
+            throw new InvalidArgumentException('A metadata-only revision cannot contain document content.');
+        }
+
+        $this->persist($revision, false);
+    }
+
+    private function persist(DocumentRevision $revision, bool $invalidateDerivedIndexes): void
     {
         $startedTransaction = !$this->database->inTransaction();
         if ($startedTransaction) {
@@ -26,7 +43,7 @@ final readonly class PdoDocumentRevisionStore
 
         try {
             $insert = $this->database->prepare(
-                'INSERT INTO `history` (`uuid`, `document`, `content`, `comment`, `action`, `rev`, `count`, `contributor_m`, `contributor_i`, `edit_request_uri`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO `history` (`uuid`, `document`, `content`, `comment`, `action`, `rev`, `count`, `contributor_m`, `contributor_i`, `edit_request_uri`, `moved_from`, `moved_to`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             );
             $insert->execute([
                 $revision->revisionId,
@@ -39,12 +56,16 @@ final readonly class PdoDocumentRevisionStore
                 $revision->contributorMemberId,
                 $revision->contributorIpId,
                 $revision->editRequestSlug,
+                $revision->movedFrom,
+                $revision->movedTo,
             ]);
 
-            $invalidate = $this->database->prepare(
-                "UPDATE `document` SET `backlink_updated`='0' WHERE `uuid`=?",
-            );
-            $invalidate->execute([$revision->documentId]);
+            if ($invalidateDerivedIndexes) {
+                $invalidate = $this->database->prepare(
+                    "UPDATE `document` SET `backlink_updated`='0' WHERE `uuid`=?",
+                );
+                $invalidate->execute([$revision->documentId]);
+            }
 
             if ($startedTransaction) {
                 $this->database->commit();

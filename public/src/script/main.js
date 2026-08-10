@@ -217,21 +217,42 @@ function showERPreview() {
 
 // 미리보기
 if(q('div#r textarea.editor') !== null){
-    function getPreview() {
-        var x = q('div#r textarea.editor').value
+    let previewRequestController = null
+
+    async function getPreview() {
+        const x = q('div#r textarea.editor').value
         g('editForm').content.value = x
-        const xhr = new XMLHttpRequest()
         const data = new FormData()
         data.append('text', x)
         data.append('title', a.g(q('div.title h1 a'), 'href').split('/').slice(2).join('/'))
 
-        xhr.open('POST', window.location.protocol + '//' + window.location.host + '/api/preview')
-        xhr.onreadystatechange = () => {
-            if(xhr.readyState === xhr.DONE && xhr.status === 200) {
-                q('div#p.editor div.w').innerHTML = xhr.responseText
+        if (previewRequestController !== null) {
+            previewRequestController.abort()
+        }
+        previewRequestController = new AbortController()
+
+        const target = q('div#p.editor div.w')
+        try {
+            const response = await fetch('/api/preview', {
+                method: 'POST',
+                body: data,
+                signal: previewRequestController.signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+            const responseText = await response.text()
+            if (!response.ok) {
+                throw new Error(responseText || 'Preview rendering failed.')
+            }
+
+            target.innerHTML = responseText
+            if (typeof window.renderWikiMath === 'function') {
+                window.renderWikiMath(target)
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                target.textContent = error.message
             }
         }
-        xhr.send(data)
     }
 }
 // 편집창

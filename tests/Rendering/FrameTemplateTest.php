@@ -39,7 +39,7 @@ $cachePath = sys_get_temp_dir() . '/pressdo-frame-test-' . bin2hex(random_bytes(
 
 try {
     $renderer = new BladeTemplateRenderer($root . '/resources/views', $cachePath);
-    $html = $renderer->render('frame', [
+    $frameData = [
         'wiki' => [
             'page' => [
                 'view_name' => 'notfound',
@@ -65,7 +65,8 @@ try {
         ],
         'skinName' => 'pressdo',
         'body' => '<main>Trusted application body</main>',
-    ]);
+    ];
+    $html = $renderer->render('frame', $frameData);
 
     if (!str_contains($html, '&lt;Missing&gt; - PressDo Test')) {
         failFrameTemplateTest('The Blade frame should escape page and site titles.');
@@ -77,6 +78,15 @@ try {
 
     if (!str_contains($html, 'class="test-skin"')) {
         failFrameTemplateTest('The Blade frame should render configured body classes.');
+    }
+
+    $frameData['wiki']['page']['view_name'] = 'edit';
+    $editHtml = $renderer->render('frame', $frameData);
+    if (!str_contains($editHtml, 'katex@0.18.1') || !str_contains($editHtml, '/src/script/math.js')) {
+        failFrameTemplateTest('Edit pages should load the current shared math renderer for live previews.');
+    }
+    if (str_contains($editHtml, 'katex@0.11.1') || str_contains($editHtml, 'onload="renderMathInElement')) {
+        failFrameTemplateTest('The frame should not retain the legacy KaTeX release or inline render handler.');
     }
 } finally {
     removeFrameTestDirectory($cachePath);

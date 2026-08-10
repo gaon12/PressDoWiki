@@ -52,6 +52,7 @@
 			"php tests/Search/SearchVisibilityTest.php",
 			"php tests/Mark/NamuMarkRendererTest.php",
 			"php tests/Mark/NamuMarkBlockParserTest.php",
+			"php tests/Mark/NamuMarkTableParserTest.php",
 			"php tests/Mark/NamuMarkMetadataTest.php",
 			"php tests/MediaWikiInterwikiTest.php",
 			"php tests/RequestTest.php",

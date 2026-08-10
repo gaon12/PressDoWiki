@@ -16,6 +16,7 @@ final readonly class BlockParser
 
     public function __construct(
         private InlineRenderer $inlineRenderer,
+        private TableParser $tableParser,
         private LinkCollection $links,
     ) {}
 
@@ -73,6 +74,24 @@ final readonly class BlockParser
                     $this->inlineRenderer->render($heading[2]),
                     $level,
                 );
+                continue;
+            }
+
+            if (($tableRow = $this->tableParser->parseRow($line)) !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $tableRows = [$tableRow];
+
+                while ($index + 1 < $lineCount) {
+                    $nextRow = $this->tableParser->parseRow($lines[$index + 1]);
+                    if ($nextRow === null) {
+                        break;
+                    }
+
+                    $tableRows[] = $nextRow;
+                    ++$index;
+                }
+
+                $blocks[] = $this->tableParser->render($tableRows);
                 continue;
             }
 

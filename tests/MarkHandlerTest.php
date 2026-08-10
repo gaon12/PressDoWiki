@@ -1,10 +1,6 @@
 <?php
 
-require __DIR__.'/../App/Helpers/Config.php';
-require __DIR__.'/../App/Services/Mark/MarkHandler.php';
-require __DIR__.'/../App/Services/Mark/Markdown/Loader.php';
-require __DIR__.'/../App/Services/Mark/MediaWiki/Loader.php';
-require __DIR__.'/../App/Services/Mark/BBCode/Loader.php';
+require __DIR__.'/../vendor/autoload.php';
 
 use PressDo\App\Helpers\Config;
 use PressDo\App\Services\Mark\MarkHandler;
@@ -36,6 +32,6 @@ assertMarkValue(true, str_contains($mediaWiki['html'], '<h'), 'MediaWiki loader 
 
 setMarkConfigValues(['wiki.mark' => 'Namumark']);
 $alias = MarkHandler::load("== Alias ==\n\nBody", []);
-assertMarkValue(true, str_contains($alias['html'], '<h'), 'Legacy Namumark config should fall back to MediaWiki.');
+assertMarkValue(true, str_contains($alias['html'], '<h'), 'Legacy Namumark spelling should select the built-in NamuMark renderer.');
 
 echo "Mark handler tests passed.".PHP_EOL;

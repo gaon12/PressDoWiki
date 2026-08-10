@@ -10,9 +10,8 @@ use RuntimeException;
 class MarkHandler
 {
     private const MARK_ALIASES = [
-        'Namumark' => 'MediaWiki',
-        'NamuMark' => 'MediaWiki',
-        'namumark' => 'MediaWiki',
+        'Namumark' => 'NamuMark',
+        'namumark' => 'NamuMark',
     ];
 
     /**

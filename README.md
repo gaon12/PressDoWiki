@@ -8,7 +8,7 @@
 ### Currently in development.
 -------------------------
 - 나무위키의 엔진인 the seed를 모방하여 만든 PHP 기반 위키입니다.
-- 나무마크는 기본적으로 제공되지 않으며, 직접 설치하셔야 합니다.
+- 외부 저장소 없이 사용할 수 있는 자체 클린룸 나무마크 렌더러와 기본 pressdo 스킨을 함께 제공합니다.
 
  ### 개발 환경
  - PHP 8.2
@@ -20,7 +20,7 @@
  - MySQL, MariaDB, SQLite 중 하나가 설치되어 있어야 합니다. SQLite를 사용할 경우 PHP `pdo_sqlite` 확장이 필요합니다.
  - 확인이 필요한 항목: ~~PostgreSQL, CUBRID, Oracle Database, MSSQL, Firebird, IBM DB2~~
  - SQLite 초기 스키마는 `templates/database_scheme.sqlite.sql`을 사용하세요. `database.type`은 `sqlite`, `database.name`은 SQLite 파일 경로 또는 `:memory:`로 설정합니다.
- - php-geoip (PECL 확장) 또는 Maxmind GeoIP2 데이터베이스 (city)가 있어야 합니다: php-geoip가 우선 적용됩니다.
+ - 방문자 위치 기능을 사용할 때만 MaxMind GeoIP2 City 데이터베이스가 필요합니다.
  - 파일이 업로드될 공간이 있어야 합니다. (S3, Local 중 선택)
  - ngram Parser가 지원되는 데이터베이스를 사용하거나 별도의 검색 엔진 소프트웨어가 설치되어 있어야 합니다.
 
@@ -115,6 +115,7 @@ formatting ratchet. `composer check` verifies syntax, formatting, PHPStan level
 max, the current test suite, and known dependency advisories.
 
  ### 지원 스킨
+ - pressdo (기본 제공)
  - ~~senkawa~~ (저작권 문제로 배포하지 않습니다.)
  - liberty (예정)
  - vector (예정)

@@ -20,10 +20,12 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/App/Http',
         __DIR__.'/App/Infrastructure/Rendering',
         __DIR__.'/App/Shared/Rendering',
+        __DIR__.'/App/Services/Mark/NamuMark',
         __DIR__.'/App/Update',
         __DIR__.'/tests/Rendering',
         __DIR__.'/tests/Update',
         __DIR__.'/tests/Http',
+        __DIR__.'/tests/Mark',
         __DIR__.'/tests/Admin',
     ])
     ->append([

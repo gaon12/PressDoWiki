@@ -6,6 +6,7 @@ parameters:
         - App/Core/Skin.php
         - App/Core/View.php
         - App/Helpers/Csp.php
+        - App/Helpers/GeoIp.php
         - App/Helpers/RouteControllerResolver.php
         - App/Helpers/SqlDialect.php
         - App/Http

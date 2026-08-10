@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aee98d1d99d9b58e752e1dbb92cd9c7e",
+    "content-hash": "246990942b6f876fdba0e1812b17e67d",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -711,29 +711,29 @@
         },
         {
             "name": "geoip2/geoip2",
-            "version": "v2.13.0",
+            "version": "v3.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/maxmind/GeoIP2-php.git",
-                "reference": "6a41d8fbd6b90052bc34dff3b4252d0f88067b23"
+                "reference": "257a350e5e0cae57ac95417f32bb0aba285b2c0d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/maxmind/GeoIP2-php/zipball/6a41d8fbd6b90052bc34dff3b4252d0f88067b23",
-                "reference": "6a41d8fbd6b90052bc34dff3b4252d0f88067b23",
+                "url": "https://api.github.com/repos/maxmind/GeoIP2-php/zipball/257a350e5e0cae57ac95417f32bb0aba285b2c0d",
+                "reference": "257a350e5e0cae57ac95417f32bb0aba285b2c0d",
                 "shasum": ""
             },
             "require": {
                 "ext-json": "*",
-                "maxmind-db/reader": "~1.8",
-                "maxmind/web-service-common": "~0.8",
-                "php": ">=7.2"
+                "maxmind-db/reader": "^1.13.0",
+                "maxmind/web-service-common": "~0.11",
+                "php": ">=8.1"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "3.*",
                 "phpstan/phpstan": "*",
-                "phpunit/phpunit": "^8.0 || ^9.0",
-                "squizlabs/php_codesniffer": "3.*"
+                "phpunit/phpunit": "^10.0",
+                "squizlabs/php_codesniffer": "4.*"
             },
             "type": "library",
             "autoload": {
@@ -749,10 +749,10 @@
                 {
                     "name": "Gregory J. Oschwald",
                     "email": "goschwald@maxmind.com",
-                    "homepage": "https://www.maxmind.com/"
+                    "homepage": "https://www.maxmind.com/en/home"
                 }
             ],
-            "description": "MaxMind GeoIP2 PHP API",
+            "description": "MaxMind GeoIP PHP API",
             "homepage": "https://github.com/maxmind/GeoIP2-php",
             "keywords": [
                 "IP",
@@ -763,9 +763,9 @@
             ],
             "support": {
                 "issues": "https://github.com/maxmind/GeoIP2-php/issues",
-                "source": "https://github.com/maxmind/GeoIP2-php/tree/v2.13.0"
+                "source": "https://github.com/maxmind/GeoIP2-php/tree/v3.4.0"
             },
-            "time": "2022-08-05T20:32:58+00:00"
+            "time": "2026-07-16T22:11:20+00:00"
         },
         {
             "name": "guzzlehttp/guzzle",

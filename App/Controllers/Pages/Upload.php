@@ -5,6 +5,8 @@ use PressDo\App\Models\{Document,Member,Files};
 use PressDo\App\Core\Controller;
 use PressDo\App\Controllers\ACL as WikiACL;
 use PressDo\App\Helpers\{Languages,Config,Namespaces,DefaultConfig};
+use PressDo\App\Services\File\DuplicateFileException;
+use PressDo\App\Services\Uploaders\ObjectStorageFactory;
 
 class Upload extends Controller
 {
@@ -87,18 +89,6 @@ class Upload extends Controller
                 $size = getimagesize($_FILES['file']['tmp_name']);
                 $hash = hash_file('sha256', $_FILES['file']['tmp_name']);
 
-                $dup = Files::findHash($hash);
-
-                if (!$dup) {
-                    // hash 중복 아닌 경우에만 업로드
-                    $className = 'PressDo\App\Services\Uploaders\\'.Config::get('storage.type');
-                    $uploader = new $className();
-                    $uploader->execute([
-                        'path' => substr($hash, 0, 2).'/'.$hash.'.'.str_replace(['jpg', 'png'], 'webp', $fileExt),
-                        'file' => $_FILES['file']['tmp_name']
-                    ]);
-                }
-
                 $content = '[include('.Namespaces::template().':'.Languages::get('image_license').'/'.$_POST['license'].")]\n"
                     .'[['.Namespaces::category().':'.Namespaces::file().'/'.$_POST['category']."]]\n".$_POST['text'];
                 
@@ -109,20 +99,28 @@ class Upload extends Controller
                 }
 
                 $comment = empty($_POST['summary']) ? sprintf(Languages::get('history', 'uploaded_file'), $_FILES['file']['name']) : $_POST['summary'];
-                $fileuuid = Files::createDocument(
-                    $namespace,
-                    $title,
-                    $content,
-                    $comment,
-                    $member,
-                    $ip,
-                    $hash,
-                    $size[0],
-                    $size[1],
-                );
+                $objectKey = substr($hash, 0, 2).'/'.$hash.'.'.str_replace(['jpg', 'png'], 'webp', $fileExt);
+                try {
+                    Files::uploadDocument(
+                        ObjectStorageFactory::create((string) Config::get('storage.type')),
+                        $_FILES['file']['tmp_name'],
+                        $objectKey,
+                        $namespace,
+                        $title,
+                        $content,
+                        $comment,
+                        $member,
+                        $ip,
+                        $hash,
+                        $size[0],
+                        $size[1],
+                    );
 
-                Header('Location: /w/'.$_POST['document']);
-                exit;
+                    Header('Location: /w/'.$_POST['document']);
+                    exit;
+                } catch (DuplicateFileException) {
+                    $this->error = self::makeErrorBox('err_duplicate_file');
+                }
             } else {
                 $this->error = [
                     'code' => $error,

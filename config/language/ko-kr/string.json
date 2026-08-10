@@ -250,6 +250,7 @@
         "file_select_license": "분류를 선택해주세요.",
         "err_invalid_fileext": "문서 이름과 확장자가 맞지 않습니다. (파일 확장자: %1$s)",
         "err_invalid_file": "올바르지 않은 파일입니다.",
+        "err_duplicate_file": "동일한 내용의 파일이 이미 업로드되어 있습니다.",
         "err_invalid_file_namespace": "업로드는 파일 이름 공간에서만 가능합니다.",
         "err_document_exists": "문서가 이미 존재합니다.",
         "err_file_toobig": "파일 크기가 서버 설정값보다 큽니다.",

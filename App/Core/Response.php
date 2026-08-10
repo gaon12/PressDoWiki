@@ -2,10 +2,13 @@
 
 namespace PressDo\App\Core;
 
+use PressDo\App\Http\Security\LocalRedirect;
+
 final class Response
 {
     public static function redirect(string $location, int $status = 302): never
     {
+        $location = LocalRedirect::sanitize($location);
         header('Location: ' . $location, true, $status);
         exit;
     }

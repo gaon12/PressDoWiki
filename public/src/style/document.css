@@ -114,6 +114,9 @@ code,kbd,pre,samp{font-family:Menlo,Monaco,Consolas,Courier New,monospace;font-s
 .w .wiki-image-align-top {display:inline-block; font-size:0; vertical-align:middle; max-width:100%;}
 .w .wiki-image-wrapper {position:relative; display:inline-block; max-width:100%; overflow:hidden; font-size:0;}
 .w .wiki-image-wrapper:hover .wiki-image-link {display:block;}
+.wiki-user-notice {border:1px solid gray; border-top-width:5px; padding:10px; margin-bottom:10px;}
+.wiki-user-admin {border-top-color:orange;}
+.wiki-user-blocked {border-top-color:red;}
 .w .wiki-image-loading {display:none;}
 .w .wiki-image-link {
     background: none;

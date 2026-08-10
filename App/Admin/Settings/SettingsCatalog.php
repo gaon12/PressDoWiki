@@ -30,7 +30,7 @@ final class SettingsCatalog
             new SettingDefinition('wiki.language', '지역', '언어', '설치된 인터페이스 언어입니다.', SettingType::Choice, 'ko-kr', 16, ['ko-kr']),
             new SettingDefinition('wiki.timezone', '지역', '기본 시간대', 'GeoIP로 시간대를 찾을 수 없을 때 사용할 IANA 시간대입니다.', SettingType::Timezone, 'Asia/Seoul', 64),
             new SettingDefinition('wiki.default_skin', '표시', '기본 스킨', '사용자 선택이 없을 때 사용할 내장 스킨 식별자입니다.', SettingType::Identifier, 'pressdo', 64),
-            new SettingDefinition('wiki.mark', '표시', '기본 마크업', '새 문서를 해석할 기본 마크업 문법입니다.', SettingType::Choice, 'MediaWiki', 32, ['MediaWiki', 'Markdown', 'BBCode']),
+            new SettingDefinition('wiki.mark', '표시', '기본 마크업', '새 문서를 해석할 기본 마크업 문법입니다.', SettingType::Choice, 'MediaWiki', 32, ['MediaWiki', 'NamuMark', 'Markdown', 'BBCode']),
             new SettingDefinition('wiki.geoip2_database', '고급', 'GeoIP 데이터베이스', '선택 사항인 GeoLite2 또는 GeoIP2 City 데이터베이스의 서버 경로입니다.', SettingType::Text, '', 4096),
             new SettingDefinition('member.tos', '회원', '이용 약관', '가입 화면에 표시할 이용 약관입니다.', SettingType::Textarea, '여기에 약관을 입력해 주세요.', 20000),
         ];

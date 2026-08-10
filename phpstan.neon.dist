@@ -14,6 +14,7 @@ parameters:
         - App/Http
         - App/Infrastructure/Rendering
         - App/Services/Mark/MarkHandler.php
+        - App/Services/Mark/Markdown/Loader.php
         - App/Services/Mark/MarkupLinks.php
         - App/Services/Mark/MarkupResult.php
         - App/Services/Mark/NamuMark

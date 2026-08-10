@@ -32,6 +32,22 @@ final class Request
         return $this->stringFrom($this->query, $key, $default);
     }
 
+    public function queryOptionalString(string $key): ?string
+    {
+        if (!array_key_exists($key, $this->query)) {
+            return null;
+        }
+
+        $value = $this->query[$key];
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $value = (string) $value;
+
+        return $value === '' ? null : $value;
+    }
+
     public function postString(string $key, string $default = ''): string
     {
         return $this->stringFrom($this->post, $key, $default);
@@ -77,6 +93,12 @@ final class Request
         $value = $this->post[$key] ?? null;
 
         return is_array($value) ? self::stringKeyed($value) : [];
+    }
+
+    /** @return array<string, mixed> */
+    public function postData(): array
+    {
+        return $this->post;
     }
 
     /**

@@ -14,6 +14,7 @@
 		"phpstan": "phpstan analyse --memory-limit=512M",
 		"security": "@composer audit --locked",
 		"test": [
+			"php tests/Compliance/LicenseBoundaryTest.php",
 			"php tests/SecurityTest.php",
 			"php tests/RouteControllerResolverTest.php",
 			"php tests/CspTest.php",

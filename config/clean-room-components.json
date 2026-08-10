@@ -1,0 +1,28 @@
+{
+    "schema_version": 1,
+    "forbidden_dependency_license_prefixes": [
+        "AGPL-"
+    ],
+    "components": [
+        {
+            "name": "Built-in NamuMark renderer",
+            "implementation_basis": "public-behaviour",
+            "paths": [
+                "App/Services/Mark/NamuMark",
+                "tests/Mark/NamuMarkRendererTest.php"
+            ],
+            "third_party_source_references": []
+        },
+        {
+            "name": "Bundled PressDo skin",
+            "implementation_basis": "original-design",
+            "paths": [
+                "resources/views/skins/pressdo.blade.php",
+                "public/skins/pressdo",
+                "public/src/style/skin.css",
+                "tests/ViewSkinTest.php"
+            ],
+            "third_party_source_references": []
+        }
+    ]
+}

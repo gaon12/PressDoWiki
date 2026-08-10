@@ -36,15 +36,19 @@ final readonly class PdoObjectMutationLock implements ObjectMutationLockInterfac
             throw new RuntimeException('SQLite object mutation locks require control of the outer transaction.');
         }
 
-        $this->database->exec('BEGIN IMMEDIATE');
+        $this->database->beginTransaction();
         try {
+            // PDO cannot represent BEGIN IMMEDIATE in its transaction state.
+            // A no-op write keeps PDO and nested repositories transaction-aware
+            // while still acquiring SQLite's database-wide reserved write lock.
+            $this->database->exec('UPDATE files SET hash=hash WHERE 0');
             $result = $operation();
-            $this->database->exec('COMMIT');
+            $this->database->commit();
 
             return $result;
         } catch (Throwable $operationError) {
             try {
-                $this->database->exec('ROLLBACK');
+                $this->rollBackSqliteIfActive();
             } catch (Throwable $rollbackError) {
                 throw new RuntimeException(
                     'The object operation and SQLite rollback both failed: ' . $rollbackError->getMessage(),
@@ -53,6 +57,14 @@ final readonly class PdoObjectMutationLock implements ObjectMutationLockInterfac
             }
 
             throw $operationError;
+        }
+    }
+
+    /** Preserve the operation error if SQLite already ended its transaction. */
+    private function rollBackSqliteIfActive(): void
+    {
+        if ($this->database->inTransaction()) {
+            $this->database->rollBack();
         }
     }
 

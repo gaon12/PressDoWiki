@@ -23,9 +23,11 @@ quotes nested up to eight levels, unordered and decimal, alphabetic, or Roman
 lists nested up to eight levels, and literal `{{{` / `}}}` code blocks. Category
 declarations and first-line Korean
 or English redirect directives produce explicit backlink metadata. Unknown
-syntax is rendered as escaped text. Tables, footnotes, macros,
-includes, files, syntax highlighting, and parameterized styling remain
-unsupported until their grammar and resource limits are specified and tested.
+syntax is rendered as escaped text. Basic consecutive `|| cell ||` table rows
+are rendered through a dedicated table parser. Table attributes, cell merging,
+footnotes, macros, includes, files, syntax highlighting, and parameterized
+styling remain unsupported until their grammar and resource limits are
+specified and tested.
 
 ## Security invariants
 
@@ -35,6 +37,8 @@ unsupported until their grammar and resource limits are specified and tested.
 - Documents larger than 2 MiB are rejected before parsing.
 - Documents with more than 100,000 lines are rejected before block parsing.
 - Quotes and lists stop at eight nesting levels.
+- A table row is limited to 128 cells and a document to 10,000 table cells.
+- Table contents use the same escaping, link validation, and token budgets as ordinary text.
 - Literal code blocks are escaped and never sent through the inline parser.
 - Redirect targets are local document names no longer than 255 bytes.
 - Category names are limited to 255 bytes and deduplicated before indexing.

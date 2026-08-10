@@ -43,7 +43,8 @@ final class Renderer
         }
 
         $links = new LinkCollection();
-        $html = (new BlockParser(new InlineRenderer($links), $links))->render($lines);
+        $inlineRenderer = new InlineRenderer($links);
+        $html = (new BlockParser($inlineRenderer, new TableParser($inlineRenderer), $links))->render($lines);
         $collectedLinks = $links->all();
 
         return [

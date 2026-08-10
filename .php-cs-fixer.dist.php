@@ -23,6 +23,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/App/Core',
         __DIR__.'/App/Helpers',
         __DIR__.'/App/Http',
+        __DIR__.'/App/Infrastructure/Files',
         __DIR__.'/App/Infrastructure/Rendering',
         __DIR__.'/App/Shared/Rendering',
         __DIR__.'/App/Services/Mark/NamuMark',

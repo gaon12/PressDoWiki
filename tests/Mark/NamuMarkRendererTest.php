@@ -60,4 +60,32 @@ try {
 } catch (RuntimeException) {
 }
 
+$duplicates = implode(' ', array_fill(0, 5_000, '[[같은 문서]]'));
+$duplicateResult = (new Renderer())->render($duplicates);
+if ($duplicateResult['links']['link'] !== ['같은 문서']) {
+    failNamuMarkRendererTest('Large duplicate link sets should retain one stable relationship.');
+}
+
+$uniqueLinks = [];
+for ($index = 0; $index <= 10_000; ++$index) {
+    $uniqueLinks[] = "[[문서 {$index}]]";
+}
+try {
+    (new Renderer())->render(implode(' ', $uniqueLinks));
+    failNamuMarkRendererTest('Documents exceeding the relationship budget should be rejected.');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), '10,000 unique relationships')) {
+        throw $error;
+    }
+}
+
+try {
+    (new Renderer())->render(str_repeat("''x'' ", 50_001));
+    failNamuMarkRendererTest('Documents exceeding the inline-token budget should be rejected.');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'inline marker budget')) {
+        throw $error;
+    }
+}
+
 echo 'Clean-room NamuMark renderer tests passed.' . PHP_EOL;

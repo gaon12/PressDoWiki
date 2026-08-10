@@ -7,30 +7,55 @@ namespace PressDo\App\Services\Mark\NamuMark;
 /**
  * Renders inline syntax without ever parsing generated HTML as markup again.
  */
-final readonly class InlineRenderer
+final class InlineRenderer
 {
     private const TOKEN_PATTERN = "~(\[\[[^\]\r\n]{1,2048}\]\]|'''[^\r\n]+?'''|''[^\r\n]+?''|__[^\r\n]+?__|\~\~[^\r\n]+?\~\~|--[^\r\n]+?--)~u";
 
-    public function __construct(private LinkCollection $links) {}
+    private const MAX_INLINE_TOKENS = 50_000;
+
+    private const MAX_TOKEN_MARKERS = 100_000;
+
+    private int $inlineTokens = 0;
+
+    private int $tokenMarkers = 0;
+
+    public function __construct(private readonly LinkCollection $links) {}
 
     public function render(string $text): string
     {
+        $markers = substr_count($text, '[[')
+            + substr_count($text, "''")
+            + substr_count($text, '__')
+            + substr_count($text, '~~')
+            + substr_count($text, '--');
+        if ($markers === 0) {
+            return $this->escape($text);
+        }
+
+        $this->tokenMarkers += $markers;
+        if ($this->tokenMarkers > self::MAX_TOKEN_MARKERS) {
+            throw new \RuntimeException('NamuMark input exceeds the inline marker budget.');
+        }
+
         $segments = preg_split(
             self::TOKEN_PATTERN,
             $text,
             -1,
-            PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY,
+            PREG_SPLIT_DELIM_CAPTURE,
         );
 
         if ($segments === false) {
             return $this->escape($text);
         }
 
+        $this->inlineTokens += intdiv(count($segments), 2);
+        if ($this->inlineTokens > self::MAX_INLINE_TOKENS) {
+            throw new \RuntimeException('NamuMark input exceeds the 50,000 inline-token rendering limit.');
+        }
+
         $html = '';
-        foreach ($segments as $segment) {
-            $html .= preg_match(self::TOKEN_PATTERN, $segment) === 1
-                ? $this->renderToken($segment)
-                : $this->escape($segment);
+        foreach ($segments as $index => $segment) {
+            $html .= $index % 2 === 1 ? $this->renderToken($segment) : $this->escape($segment);
         }
 
         return $html;
@@ -108,6 +133,9 @@ final readonly class InlineRenderer
         $targetParts = explode('#', $target, 2);
         $document = $targetParts[0];
         $fragment = $targetParts[1] ?? null;
+        if (strlen($document) > 255) {
+            return $this->escape($originalToken);
+        }
         $href = $document === '' ? '' : '/w/' . rawurlencode($document);
         if ($fragment !== null && $fragment !== '') {
             $href .= '#' . rawurlencode($fragment);

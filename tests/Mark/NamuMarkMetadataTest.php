@@ -44,4 +44,10 @@ if ($invalidCategory['links']['category'] !== [] || !str_contains($invalidCatego
     failNamuMarkMetadataTest('Invalid categories must remain visible instead of becoming metadata.');
 }
 
+$oversizedDocument = str_repeat('가', 86);
+$oversizedLink = (new Renderer())->render("[[{$oversizedDocument}|표시 이름]]");
+if ($oversizedLink['links']['link'] !== [] || !str_contains($oversizedLink['html'], '표시 이름')) {
+    failNamuMarkMetadataTest('Internal targets longer than 255 bytes must remain visible without being indexed.');
+}
+
 echo 'Clean-room NamuMark metadata tests passed.' . PHP_EOL;

@@ -14,7 +14,10 @@ final readonly class BlockParser
 {
     private const MAX_NESTING_DEPTH = 8;
 
-    public function __construct(private InlineRenderer $inlineRenderer) {}
+    public function __construct(
+        private InlineRenderer $inlineRenderer,
+        private LinkCollection $links,
+    ) {}
 
     /**
      * @param list<string> $lines
@@ -30,6 +33,11 @@ final readonly class BlockParser
 
             if (trim($line) === '') {
                 $this->flushParagraph($paragraph, $blocks);
+                continue;
+            }
+
+            if ($index === 0 && ($redirect = $this->matchRedirect($line)) !== null) {
+                $this->links->addRedirect($redirect);
                 continue;
             }
 
@@ -98,6 +106,25 @@ final readonly class BlockParser
         $this->flushParagraph($paragraph, $blocks);
 
         return implode("\n", $blocks);
+    }
+
+    private function matchRedirect(string $line): ?string
+    {
+        if (preg_match('/\A#(?:redirect|넘겨주기)[ \t]+(.+?)\s*\z/iu', $line, $match) !== 1) {
+            return null;
+        }
+
+        $target = trim($match[1]);
+        if (
+            $target === ''
+            || strlen($target) > 255
+            || preg_match('/[\x00-\x1F\x7F]/', $target) === 1
+            || parse_url($target, PHP_URL_SCHEME) !== null
+        ) {
+            return null;
+        }
+
+        return $target;
     }
 
     /**

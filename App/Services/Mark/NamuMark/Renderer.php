@@ -21,13 +21,13 @@ final class Renderer
     /**
      * @return array{
      *     html: string,
-     *     categories: list<string>,
+     *     categories: array<string, list<string>>,
      *     links: array{
      *         link: list<string>,
      *         redirect: list<string>,
      *         include: list<string>,
      *         file: list<string>,
-     *         category: list<string>
+     *         category: array<string, list<string>>
      *     }
      * }
      */
@@ -43,7 +43,7 @@ final class Renderer
         }
 
         $links = new LinkCollection();
-        $html = (new BlockParser(new InlineRenderer($links)))->render($lines);
+        $html = (new BlockParser(new InlineRenderer($links), $links))->render($lines);
         $collectedLinks = $links->all();
 
         return [

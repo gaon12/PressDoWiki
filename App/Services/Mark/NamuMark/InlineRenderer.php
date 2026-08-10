@@ -76,6 +76,17 @@ final readonly class InlineRenderer
             return $this->escape($originalToken);
         }
 
+        if (str_starts_with($target, '분류:')) {
+            $category = trim(substr($target, strlen('분류:')));
+            if ($category === '' || strlen($category) > 255) {
+                return $this->escape($originalToken);
+            }
+
+            $this->links->addCategory($category);
+
+            return '';
+        }
+
         $url = parse_url($target);
         if (is_array($url) && isset($url['scheme'])) {
             if (

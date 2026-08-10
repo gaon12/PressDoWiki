@@ -66,6 +66,11 @@ final readonly class Local implements ObjectStorageInterface
         return new StoredObject($key, true);
     }
 
+    public function exists(ObjectKey $key): bool
+    {
+        return is_file($this->target($key, false));
+    }
+
     public function delete(ObjectKey $key): void
     {
         $target = $this->target($key, false);

@@ -34,6 +34,12 @@ assertRoute(
 );
 
 assertRoute(
+    'PressDo\\App\\Controllers\\Pages\\admin\\StorageIntegrity',
+    (object) ['page' => 'admin', 'menu' => 'storage_integrity'],
+    'Storage integrity should resolve through the administrator allow list.'
+);
+
+assertRoute(
     null,
     (object) ['page' => '..\\member', 'menu' => 'login'],
     'Unexpected page segments should not resolve to a controller.'

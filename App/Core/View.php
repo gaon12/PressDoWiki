@@ -112,8 +112,13 @@ final class View
             $file = ProjectPaths::app('Views/layouts/notfound.latte');
         }
 
-        $this->params['innerLayout'] = $viewName === 'config'
-            ? $this->templates->render('admin.config', $this->params)
+        $bladeView = match ($viewName) {
+            'config' => 'admin.config',
+            'storage_integrity' => 'admin.storage_integrity',
+            default => null,
+        };
+        $this->params['innerLayout'] = $bladeView !== null
+            ? $this->templates->render($bladeView, $this->params)
             : $this->latte->renderToString($file, $this->params);
         $this->params['body'] = $this->renderSkinLayout($this->skin->name);
 

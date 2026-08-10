@@ -8,6 +8,7 @@ parameters:
         - App/Services/Search
         - App/Services/Uploaders
         - App/Controllers/Pages/admin/Config.php
+        - App/Controllers/Pages/admin/StorageIntegrity.php
         - App/Controllers/Pages/api/Preview.php
         - App/Controllers/Pages/Upload.php
         - App/Core/Request.php

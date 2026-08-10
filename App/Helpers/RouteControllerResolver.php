@@ -42,6 +42,7 @@ final class RouteControllerResolver
             'config' => 'admin\\Config',
             'grant' => 'admin\\Grant',
             'login_history' => 'admin\\LoginHistory',
+            'storage_integrity' => 'admin\\StorageIntegrity',
         ],
         'api' => [
             'preview' => 'api\\Preview',

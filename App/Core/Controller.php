@@ -89,6 +89,10 @@ class Controller
                 array_push($menus, ['l' => $link[$prm], 't' => $prm]);
             }
         }
+        if (in_array('config', $sps, true) || in_array('developer', $sps, true)) {
+            $menus[] = ['l' => '/admin/config', 't' => 'config', 'label' => '사이트 설정'];
+            $menus[] = ['l' => '/admin/storage_integrity', 't' => 'storage_integrity', 'label' => '저장소 무결성'];
+        }
 
         return [
             'menus' => $menus,

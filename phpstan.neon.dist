@@ -15,3 +15,4 @@ parameters:
         - App/Infrastructure/Rendering
         - App/Services/Mark/MarkHandler.php
         - App/Shared/Rendering
+        - App/Update

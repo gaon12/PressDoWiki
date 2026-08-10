@@ -60,6 +60,23 @@ foreach (['깊은 시작', '얕은 다음', '다시 깊게'] as $visibleItem) {
     }
 }
 
+$orderedLists = (new Renderer())->render(
+    " 1. 숫자\n 1. 둘째\n a. 영문\n A. 대문자\n i. 로마자\n I. 대문자 로마자",
+);
+foreach (
+    [
+        '<ol class="wiki-list wiki-list-decimal"><li>숫자</li><li>둘째</li></ol>',
+        '<ol class="wiki-list wiki-list-alpha"><li>영문</li></ol>',
+        '<ol class="wiki-list wiki-list-upper-alpha"><li>대문자</li></ol>',
+        '<ol class="wiki-list wiki-list-roman"><li>로마자</li></ol>',
+        '<ol class="wiki-list wiki-list-upper-roman"><li>대문자 로마자</li></ol>',
+    ] as $expectedList
+) {
+    if (!str_contains($orderedLists['html'], $expectedList)) {
+        failNamuMarkBlockParserTest('Missing expected ordered-list output: ' . $expectedList);
+    }
+}
+
 $unclosed = (new Renderer())->render("{{{\n<script>\n'''still literal'''");
 if (
     !str_contains($unclosed['html'], '&lt;script&gt;')

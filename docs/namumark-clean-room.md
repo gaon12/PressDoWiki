@@ -19,10 +19,11 @@ The repository-wide contribution rules are recorded in
 
 The current slice supports headings, paragraphs and line breaks, bold, italic,
 underline, both common strike-through forms, internal links, HTTP(S) links,
-quotes nested up to eight levels, unordered lists nested up to eight levels, and
-literal `{{{` / `}}}` code blocks. Category declarations and first-line Korean
+quotes nested up to eight levels, unordered and decimal, alphabetic, or Roman
+lists nested up to eight levels, and literal `{{{` / `}}}` code blocks. Category
+declarations and first-line Korean
 or English redirect directives produce explicit backlink metadata. Unknown
-syntax is rendered as escaped text. Tables, ordered lists, footnotes, macros,
+syntax is rendered as escaped text. Tables, footnotes, macros,
 includes, files, syntax highlighting, and parameterized styling remain
 unsupported until their grammar and resource limits are specified and tested.
 

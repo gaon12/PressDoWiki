@@ -171,21 +171,28 @@ final readonly class BlockParser
         return '<blockquote class="wiki-quote">' . implode("\n", $rendered) . '</blockquote>';
     }
 
-    /** @return array{depth: int, text: string}|null */
+    /** @return array{depth: int, kind: ListKind, text: string}|null */
     private function matchListItem(string $line): ?array
     {
-        if (preg_match('/\A( {1,' . self::MAX_NESTING_DEPTH . '})\*[ \t]+(.*)\z/u', $line, $match) !== 1) {
+        if (
+            preg_match(
+                '/\A( {1,' . self::MAX_NESTING_DEPTH . '})(\*|1\.|a\.|A\.|i\.|I\.)[ \t]+(.*)\z/u',
+                $line,
+                $match,
+            ) !== 1
+        ) {
             return null;
         }
 
         return [
             'depth' => strlen($match[1]),
-            'text' => $match[2],
+            'kind' => ListKind::from($match[2]),
+            'text' => $match[3],
         ];
     }
 
     /**
-     * @param list<array{depth: int, text: string}> $items
+     * @param list<array{depth: int, kind: ListKind, text: string}> $items
      */
     private function renderList(array $items): string
     {
@@ -197,23 +204,29 @@ final readonly class BlockParser
 
         $html = '';
         while ($index < count($items)) {
-            $html .= $this->renderListLevel($items, $index, $items[$index]['depth']);
+            $html .= $this->renderListLevel(
+                $items,
+                $index,
+                $items[$index]['depth'],
+                $items[$index]['kind'],
+            );
         }
 
         return $html;
     }
 
     /**
-     * @param list<array{depth: int, text: string}> $items
+     * @param list<array{depth: int, kind: ListKind, text: string}> $items
      */
-    private function renderListLevel(array $items, int &$index, int $depth): string
+    private function renderListLevel(array $items, int &$index, int $depth, ListKind $kind): string
     {
-        $html = '<ul class="wiki-list">';
+        $tag = $kind->tag();
+        $html = '<' . $tag . ' class="' . $kind->cssClass() . '">';
         $itemCount = count($items);
 
         while ($index < $itemCount) {
             $item = $items[$index];
-            if ($item['depth'] !== $depth) {
+            if ($item['depth'] !== $depth || $item['kind'] !== $kind) {
                 break;
             }
 
@@ -221,13 +234,18 @@ final readonly class BlockParser
             $html .= '<li>' . $this->inlineRenderer->render($item['text']);
 
             while ($index < $itemCount && $items[$index]['depth'] > $depth) {
-                $html .= $this->renderListLevel($items, $index, $items[$index]['depth']);
+                $html .= $this->renderListLevel(
+                    $items,
+                    $index,
+                    $items[$index]['depth'],
+                    $items[$index]['kind'],
+                );
             }
 
             $html .= '</li>';
         }
 
-        return $html . '</ul>';
+        return $html . '</' . $tag . '>';
     }
 
     /**

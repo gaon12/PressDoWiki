@@ -53,6 +53,9 @@
                         {{ $username }}
                     </a>
                     <a href="/member/mypage" class="pd-user-link">{{ $lang['page']['mypage'] ?? '내 정보' }}</a>
+                    @foreach (($wiki['session']['menus'] ?? []) as $menu)
+                        <a href="{{ $menu['l'] }}" class="pd-user-link">{{ $menu['label'] ?? $menu['t'] }}</a>
+                    @endforeach
                     <a href="/member/logout" class="pd-user-link">{{ $lang['auth']['logout'] ?? '로그아웃' }}</a>
                 @else
                     <a href="/member/login" class="pd-user-link">{{ $lang['page']['login'] ?? '로그인' }}</a>

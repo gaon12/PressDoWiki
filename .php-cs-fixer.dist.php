@@ -42,6 +42,7 @@ $finder = PhpCsFixer\Finder::create()
     ])
     ->append([
         __DIR__.'/App/Controllers/Pages/admin/Config.php',
+        __DIR__.'/App/Controllers/Pages/admin/StorageIntegrity.php',
         __DIR__.'/App/Controllers/Pages/api/Preview.php',
         __DIR__.'/App/Controllers/Pages/Upload.php',
         __DIR__.'/App/Models/Backlink.php',

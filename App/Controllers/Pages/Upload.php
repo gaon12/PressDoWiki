@@ -109,8 +109,17 @@ class Upload extends Controller
                 }
 
                 $comment = empty($_POST['summary']) ? sprintf(Languages::get('history', 'uploaded_file'), $_FILES['file']['name']) : $_POST['summary'];
-                $fileuuid = Document::createWithContent($namespace, $title, $content, $comment, $member, $ip);
-                Files::save($fileuuid, $hash, $size[0], $size[1]);
+                $fileuuid = Files::createDocument(
+                    $namespace,
+                    $title,
+                    $content,
+                    $comment,
+                    $member,
+                    $ip,
+                    $hash,
+                    $size[0],
+                    $size[1],
+                );
 
                 Header('Location: /w/'.$_POST['document']);
                 exit;

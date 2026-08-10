@@ -4,22 +4,58 @@ namespace PressDo\App\Models;
 use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
-use PressDo\App\Core\Controller;
+use PressDo\App\Services\Document\DocumentRevision;
+use PressDo\App\Services\File\FileMetadata;
+use PressDo\App\Services\File\PdoFileDocumentStore;
 
 class Files extends \PressDo\App\Core\Model
 {
-    public static function save(string $fileuuid, string $filehash, int $width, int $height): void
-    {
+    /** Create the file page, initial revision, and metadata in one transaction. */
+    public static function createDocument(
+        string $namespace,
+        string $title,
+        string $content,
+        string $comment,
+        ?string $cont_m,
+        ?string $cont_i,
+        string $sha256,
+        int $width,
+        int $height,
+    ): string {
         $db = self::db();
-        $hash = hex2bin($filehash);
-        $uuid = self::uuid2bin($fileuuid);
+        $documentId = self::uuid2bin(self::generateUuid());
+        $digest = hex2bin($sha256);
+        if ($digest === false) {
+            throw new \InvalidArgumentException('The file SHA-256 digest must be hexadecimal.');
+        }
+
+        if($cont_m !== null)
+            $cont_m = self::uuid2bin($cont_m);
+        elseif($cont_i !== null)
+            $cont_i = self::uuid2bin($cont_i);
 
         try {
-            $g = $db->prepare("INSERT INTO `files`(uuid, `hash`, width, height) VALUES (?,?,?,?)");
-            $g->execute([$uuid, $hash, $width, $height]);
+            (new PdoFileDocumentStore($db))->create(
+                $namespace,
+                $title,
+                new DocumentRevision(
+                    revisionId: self::uuid2bin(self::generateUuid()),
+                    documentId: $documentId,
+                    content: $content,
+                    comment: $comment,
+                    action: 'create',
+                    revision: 1,
+                    lengthDelta: mb_strlen($content, 'UTF-8'),
+                    contributorMemberId: $cont_m,
+                    contributorIpId: $cont_i,
+                ),
+                new FileMetadata($documentId, $digest, $width, $height),
+            );
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 파일 데이터 저장 중 오류 발생');
+            throw new ErrorException($err->getMessage().': 파일 문서 저장 중 오류 발생', previous: $err);
         }
+
+        return self::bin2uuid($documentId);
     }
 
     public static function load(string $fileuuid): array

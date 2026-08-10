@@ -36,6 +36,7 @@
 			"php tests/Document/DocumentDeletionStoreTest.php",
 			"php tests/Document/DocumentMoveStoreTest.php",
 			"php tests/Document/DocumentContentStoreTest.php",
+			"php tests/File/FileDocumentStoreTest.php",
 			"php tests/Search/SearchTextExtractorTest.php",
 			"php tests/Search/PdoSearchIndexTest.php",
 			"php tests/Search/SearchVisibilityTest.php",

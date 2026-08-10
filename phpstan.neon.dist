@@ -24,6 +24,7 @@ parameters:
         - App/Helpers/RouteControllerResolver.php
         - App/Helpers/SqlDialect.php
         - App/Http
+        - App/Infrastructure/Files
         - App/Infrastructure/Rendering
         - App/Services/Mark/MarkHandler.php
         - App/Services/Mark/Markdown/Loader.php

@@ -55,4 +55,9 @@ final class FileObjectLocator
 
         return [$current, self::keyForExtension($sha256, 'webp')];
     }
+
+    public static function isManagedKey(ObjectKey $key): bool
+    {
+        return preg_match('/\A[a-f0-9]{2}\/[a-f0-9]{64}\.(?:jpg|png|gif|webp|bmp|ico)\z/D', $key->value) === 1;
+    }
 }

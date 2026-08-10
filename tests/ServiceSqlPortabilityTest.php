@@ -18,6 +18,7 @@ $serviceFiles = [
     'App/Services/Document/PdoDocumentRevisionStore.php',
     'App/Services/File/PdoFileDocumentStore.php',
     'App/Services/File/PdoFileIntegrityRepository.php',
+    'App/Services/File/PdoObjectReferenceRepository.php',
 ];
 
 foreach ($serviceFiles as $relativePath) {

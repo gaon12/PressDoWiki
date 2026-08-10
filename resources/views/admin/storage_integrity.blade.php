@@ -45,5 +45,33 @@
                 <a class="pressdo-btn" href="/admin/storage_integrity?offset={{ $report['next_offset'] }}">다음</a>
             @endif
         </nav>
+
+        <hr>
+        <h3>고아 객체 검토 후보</h3>
+        <p>현재 객체 페이지에서 {{ $report['orphan_scanned'] }}개를 검사했습니다. DB 미참조 상태가 24시간 이상 지속된 관리 대상 객체만 표시합니다.</p>
+        <p>유예 중 {{ $report['ignored_recent'] }}개, 관리 대상 외 객체 {{ $report['ignored_unmanaged'] }}개는 제외했습니다.</p>
+        <table>
+            <thead>
+                <tr><th>객체 키</th><th>최종 수정</th><th>경과</th><th>크기</th></tr>
+            </thead>
+            <tbody>
+                @forelse ($report['orphan_items'] as $object)
+                    <tr data-orphan-candidate>
+                        <td><code>{{ $object['object_key'] }}</code></td>
+                        <td>{{ $object['last_modified'] }}</td>
+                        <td>{{ $object['age_hours'] }}시간</td>
+                        <td>{{ $object['size'] }} bytes</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4">이 페이지에는 고아 객체 후보가 없습니다.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+        <nav class="btn-area" aria-label="고아 객체 검사 페이지">
+            <a class="pressdo-btn" href="/admin/storage_integrity">처음부터</a>
+            @if ($report['next_object_cursor'] !== null)
+                <a class="pressdo-btn" href="/admin/storage_integrity?object_cursor={{ rawurlencode($report['next_object_cursor']) }}">다음 객체</a>
+            @endif
+        </nav>
     @endif
 </section>

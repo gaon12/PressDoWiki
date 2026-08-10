@@ -12,7 +12,10 @@ use PressDo\App\Models\ACL;
 use PressDo\App\Services\File\FileIntegrityScanner;
 use PressDo\App\Services\File\FileObjectResolver;
 use PressDo\App\Services\File\FileObjectState;
+use PressDo\App\Services\File\OrphanObjectScanner;
 use PressDo\App\Services\File\PdoFileIntegrityRepository;
+use PressDo\App\Services\File\PdoObjectReferenceRepository;
+use PressDo\App\Services\Uploaders\ObjectKey;
 use PressDo\App\Services\Uploaders\ObjectStorageFactory;
 use Throwable;
 
@@ -35,6 +38,11 @@ final class StorageIntegrity extends Controller
         $items = [];
         $total = 0;
         $error = null;
+        $orphanItems = [];
+        $orphanScanned = 0;
+        $ignoredRecent = 0;
+        $ignoredUnmanaged = 0;
+        $nextObjectCursor = null;
 
         try {
             $storageType = Config::get('storage.type');
@@ -42,8 +50,9 @@ final class StorageIntegrity extends Controller
                 throw new \RuntimeException('Object storage type is not configured.');
             }
             $storage = ObjectStorageFactory::create($storageType);
+            $database = Database::getInstance();
             $report = (new FileIntegrityScanner(
-                new PdoFileIntegrityRepository(Database::getInstance()),
+                new PdoFileIntegrityRepository($database),
                 new FileObjectResolver($storage),
             ))->scan($offset, self::PAGE_SIZE);
             $total = $report->total;
@@ -56,6 +65,23 @@ final class StorageIntegrity extends Controller
                     'state' => $item->object->state->value,
                     'state_label' => $this->stateLabel($item->object->state),
                     'object_key' => $item->object->key->value,
+                ];
+            }
+
+            $orphanReport = (new OrphanObjectScanner(
+                $storage,
+                new PdoObjectReferenceRepository($database),
+            ))->scan($this->objectCursor(), self::PAGE_SIZE, time());
+            $orphanScanned = $orphanReport->scanned;
+            $ignoredRecent = $orphanReport->ignoredRecent;
+            $ignoredUnmanaged = $orphanReport->ignoredUnmanaged;
+            $nextObjectCursor = $orphanReport->nextCursor?->value;
+            foreach ($orphanReport->candidates as $candidate) {
+                $orphanItems[] = [
+                    'object_key' => $candidate->object->key->value,
+                    'last_modified' => date('Y-m-d H:i:s', $candidate->object->lastModified),
+                    'age_hours' => intdiv($candidate->ageSeconds, 3600),
+                    'size' => $candidate->object->size,
                 ];
             }
         } catch (Throwable $exception) {
@@ -72,6 +98,11 @@ final class StorageIntegrity extends Controller
                 'limit' => self::PAGE_SIZE,
                 'previous_offset' => $offset > 0 ? max(0, $offset - self::PAGE_SIZE) : null,
                 'next_offset' => $offset + self::PAGE_SIZE < $total ? $offset + self::PAGE_SIZE : null,
+                'orphan_items' => $orphanItems,
+                'orphan_scanned' => $orphanScanned,
+                'ignored_recent' => $ignoredRecent,
+                'ignored_unmanaged' => $ignoredUnmanaged,
+                'next_object_cursor' => $nextObjectCursor,
                 'error' => $error,
             ],
             'menus' => [],
@@ -111,5 +142,19 @@ final class StorageIntegrity extends Controller
             FileObjectState::Legacy => '레거시 WebP',
             FileObjectState::Missing => '객체 누락',
         };
+    }
+
+    private function objectCursor(): ?ObjectKey
+    {
+        $value = $this->request->queryOptionalString('object_cursor');
+        if ($value === null) {
+            return null;
+        }
+
+        try {
+            return new ObjectKey($value);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
     }
 }

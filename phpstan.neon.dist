@@ -13,4 +13,5 @@ parameters:
         - App/Helpers/SqlDialect.php
         - App/Http
         - App/Infrastructure/Rendering
+        - App/Services/Mark/MarkHandler.php
         - App/Shared/Rendering

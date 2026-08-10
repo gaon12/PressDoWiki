@@ -43,7 +43,7 @@ final readonly class PdoDocumentRevisionStore
 
         try {
             $insert = $this->database->prepare(
-                'INSERT INTO `history` (`uuid`, `document`, `content`, `comment`, `action`, `rev`, `count`, `contributor_m`, `contributor_i`, `edit_request_uri`, `moved_from`, `moved_to`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO history (uuid, document, content, comment, action, rev, count, contributor_m, contributor_i, edit_request_uri, moved_from, moved_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             );
             $insert->execute([
                 $revision->revisionId,
@@ -62,7 +62,7 @@ final readonly class PdoDocumentRevisionStore
 
             if ($invalidateDerivedIndexes) {
                 $invalidate = $this->database->prepare(
-                    "UPDATE `document` SET `backlink_updated`='0' WHERE `uuid`=?",
+                    "UPDATE document SET backlink_updated='0' WHERE uuid=?",
                 );
                 $invalidate->execute([$revision->documentId]);
             }

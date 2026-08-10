@@ -24,14 +24,15 @@ function assertMarkValue(mixed $expected, mixed $actual, string $message): void
 
 setMarkConfigValues(['wiki.mark' => 'Markdown']);
 $markdown = MarkHandler::load('**bold**', []);
-assertMarkValue(true, str_contains($markdown['html'], '<strong>bold</strong>'), 'Markdown loader should render through a namespaced Loader class.');
+assertMarkValue(true, str_contains($markdown->html, '<strong>bold</strong>'), 'Markdown loader should render through a namespaced Loader class.');
+assertMarkValue(false, $markdown->links->hasAny(), 'Markdown should receive empty normalized link metadata.');
 
 setMarkConfigValues(['wiki.mark' => 'MediaWiki']);
 $mediaWiki = MarkHandler::load("== Heading ==\n\nBody", []);
-assertMarkValue(true, str_contains($mediaWiki['html'], '<h'), 'MediaWiki loader should render through a namespaced Loader class.');
+assertMarkValue(true, str_contains($mediaWiki->html, '<h'), 'MediaWiki loader should render through a namespaced Loader class.');
 
 setMarkConfigValues(['wiki.mark' => 'Namumark']);
 $alias = MarkHandler::load("== Alias ==\n\nBody", []);
-assertMarkValue(true, str_contains($alias['html'], '<h'), 'Legacy Namumark spelling should select the built-in NamuMark renderer.');
+assertMarkValue(true, str_contains($alias->html, '<h'), 'Legacy Namumark spelling should select the built-in NamuMark renderer.');
 
 echo "Mark handler tests passed.".PHP_EOL;

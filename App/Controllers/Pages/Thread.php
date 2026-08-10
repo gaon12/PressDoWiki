@@ -41,7 +41,7 @@ class Thread extends Controller
                 $cont = $this::readSyntax($c['content'], [
                     'title' => $this->uri_data->title,
                     'thread' => true
-                ]);
+                ])->html;
             }
 
             if ($c['contributor_i'] !== null) {

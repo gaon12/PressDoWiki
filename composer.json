@@ -25,6 +25,7 @@
 			"php tests/ViewSkinTest.php",
 			"php tests/Http/LocalRedirectTest.php",
 			"php tests/MarkHandlerTest.php",
+			"php tests/Mark/MarkupResultTest.php",
 			"php tests/Mark/NamuMarkRendererTest.php",
 			"php tests/Mark/NamuMarkBlockParserTest.php",
 			"php tests/Mark/NamuMarkMetadataTest.php",

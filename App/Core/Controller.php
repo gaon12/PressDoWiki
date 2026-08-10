@@ -5,6 +5,7 @@ namespace PressDo\App\Core;
 use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
 use PressDo\App\Models\Member;
 use PressDo\App\Services\Mark\MarkHandler;
+use PressDo\App\Services\Mark\MarkupResult;
 use SVG\SVG;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\{Mailer, Transport};
@@ -108,11 +109,9 @@ class Controller
      * Render document content with syntax
      *
      * @param string $content   document content
-     * @param string $mark      mark language
      * @param array $options    renderer options
-     * @return array            array(HTML, categories)
      */
-    protected static function readSyntax(string $content, array $options = []): array|string
+    protected static function readSyntax(string $content, array $options = []): MarkupResult
     {
         return MarkHandler::load($content, $options);
     }

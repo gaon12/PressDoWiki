@@ -5,13 +5,14 @@ use PressDo\App\Models\{Backlink,Document,Star,ACL as ACLModels,Member,Files,Sea
 use PressDo\App\Core\Controller;
 use PressDo\App\Controllers\ACL;
 use PressDo\App\Helpers\{Namespaces,Languages,DefaultConfig, Config};
+use PressDo\App\Services\Mark\MarkupLinks;
 
 class Wiki extends Controller
 {
-    public function updateLinktable(string $uuid, array $links): void
+    public function updateLinktable(string $uuid, MarkupLinks $links): void
     {
-        if (!empty($links['link']) || !empty($links['redirect']) || !empty($links['include']) || !empty($links['file']) || !empty($links['category']))
-            Backlink::update($uuid, $links);
+        if ($links->hasAny())
+            Backlink::update($uuid, $links->toLegacyArray());
     }
 
     public function makeData(): array
@@ -134,16 +135,17 @@ class Wiki extends Controller
 
         // Refresh Backlinks and Search Index
         if (!$backlinkrefreshed) {
-            self::updateSearchIndex($uuid, $content['html']);
-            self::updateLinktable($uuid, $content['links']);
+            self::updateSearchIndex($uuid, $content->html);
+            self::updateLinktable($uuid, $content->links);
         }
 
-        if (!empty($content['links']['redirect'])) {
-            [$lns, $lt] = self::parseTitle($content['links']['redirect'][0]);
+        $redirect = $content->links->firstRedirect();
+        if ($redirect !== null) {
+            [$lns, $lt] = self::parseTitle($redirect);
 
             // redirect only to valid link (document exists), without noredirect and from
             if (Document::getUuid($lns, $lt) !== false && $_GET['noredirect'] !== '1' && empty($_GET['from']))
-                header('Location: /w/'.$content['links']['redirect'][0].'?from='.$this->uri_data->title);
+                header('Location: /w/'.$redirect.'?from='.$this->uri_data->title);
         }
         
         $cat_documents = [];
@@ -184,8 +186,8 @@ class Wiki extends Controller
                 'namespace' => $namespace,
                 'title' => $title,
                 'forceShowNamespace' => self::forceShowNamespace($namespace, $title),
-                'content' => htmlspecialchars($content['html']),
-                'categories' => $content['links']['category']
+                'content' => htmlspecialchars($content->html),
+                'categories' => $content->links->categories
             ],
             'category_documents' => $cat_documents,
             'starred' => $this->session['member'] ? Star::ifStarred($uuid,$this->session['uuid']) : false,

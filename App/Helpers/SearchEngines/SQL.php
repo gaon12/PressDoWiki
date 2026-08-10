@@ -1,11 +1,13 @@
 <?php
+
 namespace PressDo\App\Helpers\SearchEngines;
 
 use PressDo\App\Models\Search;
 
 class SQL implements SearchEngineInterface
 {
-    public string $keyword, $target;
+    public string $keyword;
+    public string $target;
     public string|null $namespace;
 
     public function getSearchResult(): array

@@ -1,12 +1,14 @@
 <?php
+
 namespace PressDo\App\Core;
 
-use \PDO as PDO;
-use \PDOException as PDOException;
-use \ErrorException as ErrorException;
+use ErrorException as ErrorException;
+use PDO as PDO;
+use PDOException as PDOException;
 use PressDo\App\Helpers\Database;
 
-class Model {
+class Model
+{
     private static $db = null;
 
     /**
@@ -15,38 +17,39 @@ class Model {
      */
     protected static function db(): PDO
     {
-        if(!self::$db){
+        if (!self::$db) {
             self::$db = Database::getInstance();
             return self::$db;
-        }else
+        } else {
             return self::$db;
+        }
     }
 
     /**
      * get list of threads in the document
      * @param string $uuid     uuid of document
-     * @return array            
+     * @return array
      */
-    public static function getDocThread(string $uuid, $mode='normal'): array
+    public static function getDocThread(string $uuid, $mode = 'normal'): array
     {
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         try {
-            if($mode === 'normal'){
+            if ($mode === 'normal') {
                 $d = $db->prepare("SELECT urlstr,topic FROM `thread` WHERE `document`=? AND (`status`='normal' OR `status`='pause')");
-            }elseif($mode === 'closed'){
+            } elseif ($mode === 'closed') {
                 $d = $db->prepare("SELECT urlstr,topic FROM `thread` WHERE `document`=? AND `status`='close'");
             }
             $d->execute([$uuid]);
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 문서 토론 목록 조회 중 오류 발생');
+            throw new ErrorException($err->getMessage() . ': 문서 토론 목록 조회 중 오류 발생');
         }
         return $d->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get the number of latest revision.
-     * 
+     *
      * @param string $namespace
      * @param string $title
      * @return int
@@ -56,10 +59,10 @@ class Model {
         $db = self::db();
         $id = self::uuid2bin($uuid);
         try {
-            $d = $db->prepare("SELECT `rev` FROM `history` WHERE `document`=? ORDER BY `rev` DESC LIMIT 1");
+            $d = $db->prepare('SELECT `rev` FROM `history` WHERE `document`=? ORDER BY `rev` DESC LIMIT 1');
             $d->execute([$id]);
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 문서 버전 조회 중 오류 발생');
+            throw new ErrorException($err->getMessage() . ': 문서 버전 조회 중 오류 발생');
         }
         return intval($d->fetch(PDO::FETCH_ASSOC)['rev']);
     }
@@ -73,21 +76,23 @@ class Model {
     public static function getIpUuid($ip, bool $noinsert = false): string|null
     {
         $db = self::db();
-        
-        $d = $db->prepare("SELECT uuid FROM ip WHERE ip=?");
+
+        $d = $db->prepare('SELECT uuid FROM ip WHERE ip=?');
         $d->execute([inet_pton($ip)]);
         $data = $d->fetch(PDO::FETCH_ASSOC);
-        if($data === false){
-            if ($noinsert)
+        if ($data === false) {
+            if ($noinsert) {
                 return null;
+            }
             $uuid = self::generateUuid();
-            $d = $db->prepare("INSERT INTO ip(uuid,ip) VALUES(?,?)");
+            $d = $db->prepare('INSERT INTO ip(uuid,ip) VALUES(?,?)');
             $d->execute([self::uuid2bin($uuid),inet_pton($ip)]);
             return $uuid;
-        }else
+        } else {
             return self::bin2uuid($data['uuid']);
+        }
     }
-    
+
     /**
      * check perms grantable with 'grant'
      */
@@ -96,10 +101,10 @@ class Model {
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         try {
-            $d = $db->prepare("SELECT `perm` FROM `member` WHERE `uuid`=?");
+            $d = $db->prepare('SELECT `perm` FROM `member` WHERE `uuid`=?');
             $d->execute([$uuid]);
         } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 특별권한 조회 중 오류 발생');
+            throw new ErrorException($err->getMessage() . ': 특별권한 조회 중 오류 발생');
         }
         return explode(',', $d->fetch(PDO::FETCH_ASSOC)['perm']);
     }
@@ -114,13 +119,13 @@ class Model {
         $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
         $hex = bin2hex($bytes);
 
-        return substr($hex, 0, 8).'-'.substr($hex, 8, 4).'-'.substr($hex, 12, 4).'-'.substr($hex, 16, 4).'-'.substr($hex, 20);
+        return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
     }
 
     public static function bin2uuid(string $uuid): string
     {
         $uuid = bin2hex($uuid);
-        return substr($uuid, 0, 8).'-'.substr($uuid, 8, 4).'-'.substr($uuid, 12, 4).'-'.substr($uuid, 16, 4).'-'.substr($uuid, 20);
+        return substr($uuid, 0, 8) . '-' . substr($uuid, 8, 4) . '-' . substr($uuid, 12, 4) . '-' . substr($uuid, 16, 4) . '-' . substr($uuid, 20);
     }
 
     public static function uuid2bin(string $uuid): string

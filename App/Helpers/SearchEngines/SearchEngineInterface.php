@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers\SearchEngines;
 
 interface SearchEngineInterface

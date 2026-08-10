@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 class Router
@@ -18,9 +19,9 @@ class Router
      * @return void
      */
     public function handleURI(string $request_uri): void
-    {   
+    {
         if ($request_uri == '/'):
-            Header('Location: /w/'.rawurlencode(Config::get('wiki.front_page')));
+            Header('Location: /w/' . rawurlencode(Config::get('wiki.front_page')));
             exit;
         elseif ($request_uri == '/opensearch.xml'):
             Header('Content-Type: application/xml');
@@ -28,13 +29,13 @@ class Router
             $xml->addChild('ShortName', Config::get('wiki.site_name'));
             $xml->addChild('Description', Config::get('wiki.site_name'));
             $xml->addChild('InputEncoding', 'UTF-8');
-            $xmlimg = $xml->addChild('Image', Config::get('wiki.canonical_url').'/favicon.ico');
+            $xmlimg = $xml->addChild('Image', Config::get('wiki.canonical_url') . '/favicon.ico');
             $xmlimg->addAttribute('width', '16');
             $xmlimg->addAttribute('height', '16');
             $xmlurl = $xml->addChild('Url');
             $xmlurl->addAttribute('type', 'text/html');
             $xmlurl->addAttribute('method', 'GET');
-            $xmlurl->addAttribute('template', Config::get('wiki.canonical_url').'/Go?q={searchTerms}');
+            $xmlurl->addAttribute('template', Config::get('wiki.canonical_url') . '/Go?q={searchTerms}');
             $xml->addChild('xmlns:moz:SearchForm', Config::get('wiki.canonical_url'));
             echo $xml->asXML();
             exit;
@@ -47,7 +48,7 @@ class Router
 
         $uri_data = (object) [
             'page' => $this->getUriSegment(1) == 'w' ? 'wiki' : $this->getUriSegment(1),
-            'path' => $uripath
+            'path' => $uripath,
         ];
 
         if (count($this->uriset) > 2 && !in_array($uri_data->page, ['member', 'admin', 'api'])) {

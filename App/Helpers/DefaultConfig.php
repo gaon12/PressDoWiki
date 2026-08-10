@@ -1,7 +1,8 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
-class DefaultConfig 
+class DefaultConfig
 {
     private static array $DefConfig = [];
 
@@ -23,14 +24,15 @@ class DefaultConfig
         self::init();
         $res = static::$DefConfig[$key];
 
-        if (is_array($res) && count($res) == 1)
+        if (is_array($res) && count($res) == 1) {
             $res = $res[0];
+        }
         return $res;
     }
 
     public static function update(\PDO $instance): void
     {
-        $d = $instance->query("SELECT `key`, `value` FROM config");
+        $d = $instance->query('SELECT `key`, `value` FROM config');
         static::$DefConfig = array_merge(static::$DefConfig, $d->fetchAll(\PDO::FETCH_GROUP | \PDO::FETCH_COLUMN));
     }
 

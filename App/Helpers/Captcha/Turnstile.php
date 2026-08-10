@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers\Captcha;
 
 use PressDo\App\Helpers\DefaultConfig;
@@ -15,13 +16,13 @@ class Turnstile implements CaptchaInterface
     {
         $secretKey = DefaultConfig::get('captcha.secret');
         $response = file_get_contents(
-            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
             context: stream_context_create([
                 'http' => [
                     'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
                     'method' => 'POST',
-                    'content' => "secret={$secretKey}&response={$token}"
-                ]
+                    'content' => "secret={$secretKey}&response={$token}",
+                ],
             ])
         );
         $result = json_decode($response, true);

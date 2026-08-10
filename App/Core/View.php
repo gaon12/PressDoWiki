@@ -1,12 +1,10 @@
 <?php
+
 namespace PressDo\App\Core;
 
-
-use PressDo\App\Core\Controller;
-use PressDo\App\Helpers\Config;
 use Latte\Engine as Latte;
+use PressDo\App\Helpers\Config;
 use RuntimeException;
-
 
 class View
 {
@@ -30,21 +28,27 @@ class View
      */
     public function renderInit(): void
     {
-        $this->latte = new Latte;
+        $this->latte = new Latte();
 
-        $this->latte->addFilter('localdate',
-            fn(int $t): string => '<time datetime="'.gmdate('Y-m-d\TH:i:s', $t).'.000Z">'.date('Y-m-d H:i:s', $t).'</time>');
-        
-        $this->latte->addFilter('localreldate',
-            fn(int $t): string => '<time datetime="'.gmdate('Y-m-d\TH:i:s', $t).'.000Z">'.Controller::formatBefore($t).'</time>');
+        $this->latte->addFilter(
+            'localdate',
+            fn(int $t): string => '<time datetime="' . gmdate('Y-m-d\TH:i:s', $t) . '.000Z">' . date('Y-m-d H:i:s', $t) . '</time>'
+        );
 
-        $this->latte->addFilter('makeTitle',
-            fn(string $title, string $namespace): string => Controller::makeTitle($namespace, $title));
-        
+        $this->latte->addFilter(
+            'localreldate',
+            fn(int $t): string => '<time datetime="' . gmdate('Y-m-d\TH:i:s', $t) . '.000Z">' . Controller::formatBefore($t) . '</time>'
+        );
+
+        $this->latte->addFilter(
+            'makeTitle',
+            fn(string $title, string $namespace): string => Controller::makeTitle($namespace, $title)
+        );
+
         $this->latte->setTempDirectory('../temp');
         $this->latte->addFilter('formatTime', fn($time) => Controller::formatTime($time));
 
-        $this->skin = new \stdClass;
+        $this->skin = new \stdClass();
         $requestedSkin = $this->session['member']['settings']['skin_name']
             ?? $this->session['member']['settings']['skin']
             ?? Config::get('wiki.default_skin');
@@ -54,7 +58,7 @@ class View
 
     public function renderPage(): string
     {
-        switch($this->params['uri_data']['page']){
+        switch ($this->params['uri_data']['page']) {
             case 'LongestPages':
             case 'NeededPages':
             case 'OldPages':
@@ -66,25 +70,28 @@ class View
                 break;
             case 'admin':
             case 'member':
-                $file = '../App/Views/layouts/'.$this->params['uri_data']['page'].'/'.$this->params['uri_data']['menu'].'.latte';
+                $file = '../App/Views/layouts/' . $this->params['uri_data']['page'] . '/' . $this->params['uri_data']['menu'] . '.latte';
                 break;
             case 'new_edit_request':
             case 'edit_request':
                 $file = '../App/Views/layouts/edit.latte';
-                if ($this->params['uri_data']['action'] == 'edit')
+                if ($this->params['uri_data']['action'] == 'edit') {
                     break;
+                }
+                // no break
             default:
-                $file = '../App/Views/layouts/'.$this->params['uri_data']['page'].'.latte';
+                $file = '../App/Views/layouts/' . $this->params['uri_data']['page'] . '.latte';
         }
 
-        if($this->params['wiki']['page']['view_name'] == 'error')
+        if ($this->params['wiki']['page']['view_name'] == 'error') {
             $file = '../App/Views/layouts/error.latte';
-        elseif($this->params['wiki']['page']['view_name'] == 'notfound')
+        } elseif ($this->params['wiki']['page']['view_name'] == 'notfound') {
             $file = '../App/Views/layouts/notfound.latte';
+        }
 
         $this->params['innerLayout'] = $this->latte->renderToString($file, $this->params);
         $this->params['body'] = $this->renderSkinLayout($this->skin->name);
-        
+
         return $this->latte->renderToString('../App/Views/frame.latte', $this->params);
     }
 
@@ -120,7 +127,7 @@ class View
 
     private function skinConfigPath(string $skinName): string
     {
-        return 'skins/'.$skinName.'/config.json';
+        return 'skins/' . $skinName . '/config.json';
     }
 
     private function renderSkinLayout(string $skinName): string
@@ -146,7 +153,7 @@ class View
     private function findSkinLayoutPath(string $skinName): ?string
     {
         foreach (['layout.php', 'layout.latte'] as $filename) {
-            $path = 'skins/'.$skinName.'/'.$filename;
+            $path = 'skins/' . $skinName . '/' . $filename;
             if (is_file($path)) {
                 return $path;
             }

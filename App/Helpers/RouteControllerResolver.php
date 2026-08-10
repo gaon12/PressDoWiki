@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 final class RouteControllerResolver
@@ -82,6 +83,6 @@ final class RouteControllerResolver
             return null;
         }
 
-        return 'PressDo\\App\\Controllers\\Pages\\'.$relativeClassName;
+        return 'PressDo\\App\\Controllers\\Pages\\' . $relativeClassName;
     }
 }

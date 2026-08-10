@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 final class Csp
@@ -50,9 +51,9 @@ final class Csp
     {
         $directives = [];
         foreach (self::DIRECTIVES as $name => $sources) {
-            $directives[] = $name.' '.implode(' ', array_unique($sources));
+            $directives[] = $name . ' ' . implode(' ', array_unique($sources));
         }
 
-        return implode('; ', $directives).';';
+        return implode('; ', $directives) . ';';
     }
 }

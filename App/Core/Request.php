@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Core;
 
 final class Request
@@ -14,8 +15,7 @@ final class Request
         private readonly array $post = [],
         private readonly array $cookies = [],
         private readonly array $server = []
-    ) {
-    }
+    ) {}
 
     public static function fromGlobals(): self
     {

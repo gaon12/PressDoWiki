@@ -1,4 +1,5 @@
 <?php
+
 namespace PressDo\App\Helpers;
 
 class Namespaces
@@ -20,15 +21,17 @@ class Namespaces
      */
     protected static function init(): void
     {
-        if(empty(self::$Namespaces)) {
-            $file = '../config/language/'.DefaultConfig::get('wiki.language').'/namespace.json';
+        if (empty(self::$Namespaces)) {
+            $file = '../config/language/' . DefaultConfig::get('wiki.language') . '/namespace.json';
 
-            if (!file_exists($file))
+            if (!file_exists($file)) {
                 $file = '../config/language/ko-kr/namespace.php';
+            }
 
             $included = include $file;
-            if (!is_countable($included) || count($included) < 5)
+            if (!is_countable($included) || count($included) < 5) {
                 die('Namespace file is corrupted. namespace.php file must have at least 5 namespaces.');
+            }
 
             self::$DOCUMENT = $included[0];
             self::$FILE = $included[1];

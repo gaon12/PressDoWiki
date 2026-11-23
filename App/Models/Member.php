@@ -4,6 +4,7 @@ namespace PressDo\App\Models;
 use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
+use PressDo\App\Helpers\SqlDialect;
 
 class Member extends \PressDo\App\Core\Model
 {
@@ -428,35 +429,54 @@ class Member extends \PressDo\App\Core\Model
         $exec = self::uuid2bin($uuid);
         $token = random_bytes(16);
 
-        $d = $db->prepare("INSERT INTO cookies (user, `name`, `value`, expiry) VALUES (?,?,?,?)");
-        $d->execute([$exec, $name, $token, $_SERVER['REQUEST_TIME'] + $length]);
+        $d = $db->prepare(SqlDialect::normalizeIdentifiers("INSERT INTO cookies (`user`, `name`, `value`, expiry) VALUES (?,?,?,?)"));
+        $d->execute([$exec, $name, $token, time() + $length]);
         return bin2hex($token);
     }
 
-    public static function checkCookie(string $name, string $value): string|null
+    public static function checkCookie(string $name, string $value, ?string $expectedUser = null): ?string
     {
-        $db = self::db();
-        $token = hex2bin($value);
-
-        $d = $db->prepare("SELECT user FROM cookies WHERE `name`=? AND `value`=?");
-        $d->execute([$name, $token]);
-        $user = $d->fetch(PDO::FETCH_ASSOC);
-        if ($user !== false)
-            return self::bin2uuid($user['user']);
-        else
+        $token = self::decodeCookie($value);
+        if ($token === null) {
             return null;
+        }
+
+        $db = self::db();
+        $d = $db->prepare(SqlDialect::normalizeIdentifiers(
+            'SELECT `user` FROM cookies WHERE `name` = ? AND `value` = ? AND expiry > ?'
+        ));
+        $d->execute([$name, $token, time()]);
+        $user = $d->fetchColumn();
+        if (!is_string($user)) {
+            return null;
+        }
+
+        $uuid = self::bin2uuid($user);
+
+        return $expectedUser === null || $uuid === $expectedUser ? $uuid : null;
     }
 
     public static function deleteCookie(string $uuid, string $name, string $value): void
     {
-        $db = self::db();
-        $exec = self::uuid2bin($uuid);
-        $token = hex2bin($value);
-        if ($token === false) {
+        $token = self::decodeCookie($value);
+        if ($token === null) {
             return;
         }
 
-        $d = $db->prepare("DELETE FROM cookies WHERE user=? AND `name`=? AND `value`=?");
-        $d->execute([$exec, $name, $token]);
+        $db = self::db();
+        $d = $db->prepare(SqlDialect::normalizeIdentifiers(
+            'DELETE FROM cookies WHERE `user` = ? AND `name` = ? AND `value` = ?'
+        ));
+        $d->execute([self::uuid2bin($uuid), $name, $token]);
     }
+
+    private static function decodeCookie(string $value): ?string
+    {
+        if (strlen($value) !== 32 || !ctype_xdigit($value)) {
+            return null;
+        }
+
+        return hex2bin($value) ?: null;
+    }
+
 }

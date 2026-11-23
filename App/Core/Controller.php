@@ -41,24 +41,17 @@ class Controller
         }
 
         if (empty($this->session['member'])) {
-            if ($this->request->hasCookie('szczecin')) {
-                // auto-login
-                $uuid = Member::checkCookie('szczecin', $this->request->cookieString('szczecin'));
-
-                if ($uuid !== null) {
-                    // valid cookie
-                    $l = Member::login($uuid, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
-                    $sess = self::getMemberData($uuid, $l['email'], $l['username'], $l['skin']);
-                    $this->session['menus'] = $sess['menus'];
-                    $this->session['member'] = $sess['member'];
-                    $this->session['uuid'] = $sess['uuid'];
-                    $this->session['admin'] = $sess['admin'];
-                }
+            $uuid = Member::checkCookie('szczecin', $this->request->cookieString('szczecin'));
+            if ($uuid !== null) {
+                $member = Member::login($uuid, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
+                $this->session = array_replace(
+                    $this->session,
+                    self::getMemberData($uuid, $member['email'], $member['username'], $member['skin']),
+                );
             } else {
-                // no-logincookie
-                $ipuuid = Member::getIpUuid($this->session['ip'], true);
-                if ($ipuuid !== null) {
-                    $this->session['uuid'] = $ipuuid;
+                $ipUuid = Member::getIpUuid($this->session['ip'], true);
+                if ($ipUuid !== null) {
+                    $this->session['uuid'] = $ipUuid;
                 }
             }
         }

@@ -70,7 +70,8 @@ class Login extends Controller
                 unset($this->session['szczecin']);
 
             // 2차 로그인
-            if (!$this->request->hasCookie('podgorica') || Member::checkCookie('podgorica', $this->request->cookieString('podgorica')) === null) { // && !in_array('disable_two_factor_login', $sps)
+            $trustedUser = Member::checkCookie('podgorica', $this->request->cookieString('podgorica'), $c['uuid']);
+            if ($trustedUser === null) {
                 $this->setup2fa($l, $page['data']);
                 return $page;
             }

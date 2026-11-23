@@ -4,6 +4,7 @@ namespace PressDo\App\Models;
 use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
+use PressDo\App\Helpers\SqlDialect;
 use PressDo\App\Services\Document\DocumentRevision;
 use PressDo\App\Services\Document\PdoDocumentRevisionStore;
 use RuntimeException;
@@ -34,8 +35,15 @@ class EditRequest extends \PressDo\App\Core\Model
             $cont_i = self::uuid2bin($cont_i);
 
         try {
-            $e = $db->prepare("INSERT INTO `editrequest` (urlstr,document,comment,content,contributor_m,contributor_i,baserev) VALUES(?,?,?,?,?,?,?)");
-            $e->execute([$slug, $uuid, $comment, $content, $cont_m, $cont_i, $rv]);
+            $e = $db->prepare('INSERT INTO editrequest (urlstr, document, comment, content, contributor_m, contributor_i, baserev) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $e->bindValue(1, $slug);
+            SqlDialect::bindBinary($db, $e, 2, $uuid);
+            $e->bindValue(3, $comment);
+            $e->bindValue(4, $content);
+            SqlDialect::bindBinary($db, $e, 5, $cont_m);
+            SqlDialect::bindBinary($db, $e, 6, $cont_i);
+            $e->bindValue(7, $rv, PDO::PARAM_INT);
+            $e->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 생성 중 오류 발생');
         }
@@ -53,12 +61,10 @@ class EditRequest extends \PressDo\App\Core\Model
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         try {
-            if($mode === 'open'){
-                $d = $db->prepare("SELECT urlstr FROM `editrequest` WHERE `document`=? AND `status`='open'");
-            }elseif($mode === 'close'){
-                $d = $db->prepare("SELECT urlstr FROM `editrequest` WHERE `document`=? AND (`status`='close' OR `status`='locked')");
-            }
-            $d->execute([$uuid]);
+            $status = $mode === 'close' ? "status IN ('close', 'locked')" : "status = 'open'";
+            $d = $db->prepare('SELECT urlstr FROM editrequest WHERE document = ? AND ' . $status);
+            SqlDialect::bindBinary($db, $d, 1, $uuid);
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 목록 조회 중 오류 발생');
         }
@@ -76,18 +82,22 @@ class EditRequest extends \PressDo\App\Core\Model
         
         try {
             $d = $db->prepare("SELECT d.namespace, d.title, document, er.status, count, comment, content, contributor_m, contributor_i, baserev, datetime, lastedit, executor_m, executor_i, acceptrev, reason
-                FROM `editrequest` er INNER JOIN document d ON d.uuid = document WHERE `urlstr`=?");
+                FROM editrequest er INNER JOIN document d ON d.uuid = er.document WHERE er.urlstr = ?");
             $d->execute([$slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 정보 조회 중 오류 발생');
         }
-        if ($d->rowCount() < 1)
+        $res = $d->fetch(PDO::FETCH_ASSOC);
+        if ($res === false) {
             return null;
-        else {
-            $res = $d->fetch(PDO::FETCH_ASSOC);
-            $res['document'] = self::bin2uuid($res['document']);
-            return $res;
         }
+
+        $res['document'] = self::bin2uuid(self::readBinary($res['document']));
+        foreach (['contributor_m', 'contributor_i', 'executor_m', 'executor_i'] as $field) {
+            $res[$field] = self::readBinary($res[$field]);
+        }
+
+        return $res;
     }
     
     /**
@@ -104,7 +114,7 @@ class EditRequest extends \PressDo\App\Core\Model
         $db = self::db();
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET content=?, comment=?, count=?, lastedit=? WHERE `urlstr`=?");
+            $d = $db->prepare('UPDATE editrequest SET content = ?, comment = ?, count = ?, lastedit = ? WHERE urlstr = ?');
             $d->execute([$content, $comment, $newdifflen, time(), $slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 수정 중 오류 발생');
@@ -152,8 +162,13 @@ class EditRequest extends \PressDo\App\Core\Model
         }
 
         try {
-            $update = $db->prepare("UPDATE `editrequest` SET `status`='accepted', acceptrev=?, lastedit=?, executor_m=?, executor_i=? WHERE `urlstr`=? AND `status`='open'");
-            $update->execute([$acceptrev, time(), $cont_m, $cont_i, $slug]);
+            $update = $db->prepare("UPDATE editrequest SET status = 'accepted', acceptrev = ?, lastedit = ?, executor_m = ?, executor_i = ? WHERE urlstr = ? AND status = 'open'");
+            $update->bindValue(1, $acceptrev, PDO::PARAM_INT);
+            $update->bindValue(2, time(), PDO::PARAM_INT);
+            SqlDialect::bindBinary($db, $update, 3, $cont_m);
+            SqlDialect::bindBinary($db, $update, 4, $cont_i);
+            $update->bindValue(5, $slug);
+            $update->execute();
             if ($update->rowCount() !== 1) {
                 throw new RuntimeException('열려 있는 편집 요청만 승인할 수 있습니다.');
             }
@@ -209,8 +224,14 @@ class EditRequest extends \PressDo\App\Core\Model
         $status = $lock ? 'locked' : 'close';
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET `status`=?, lastedit=?, executor_m=?, executor_i=?, reason=? WHERE `urlstr`=?");
-            $d->execute([$status, time(), $cont_m, $cont_i, $reason, $slug]);
+            $d = $db->prepare('UPDATE editrequest SET status = ?, lastedit = ?, executor_m = ?, executor_i = ?, reason = ? WHERE urlstr = ?');
+            $d->bindValue(1, $status);
+            $d->bindValue(2, time(), PDO::PARAM_INT);
+            SqlDialect::bindBinary($db, $d, 3, $cont_m);
+            SqlDialect::bindBinary($db, $d, 4, $cont_i);
+            $d->bindValue(5, $reason);
+            $d->bindValue(6, $slug);
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 닫기기 중 오류 발생');
         }
@@ -221,7 +242,7 @@ class EditRequest extends \PressDo\App\Core\Model
         $db = self::db();
         
         try {
-            $d = $db->prepare("UPDATE `editrequest` SET `status`='open', lastedit=? WHERE `urlstr`=?");
+            $d = $db->prepare("UPDATE editrequest SET status = 'open', lastedit = ? WHERE urlstr = ?");
             $d->execute([time(), $slug]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 열기기 중 오류 발생');

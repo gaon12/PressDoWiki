@@ -120,7 +120,7 @@ class Member extends \PressDo\App\Core\Model
         if($data === false)
             return false;
         else {
-            $data['uuid'] = self::bin2uuid($data['uuid']);
+            $data['uuid'] = self::bin2uuid(self::readBinary($data['uuid']));
             return $data;
         }
     }
@@ -147,14 +147,21 @@ class Member extends \PressDo\App\Core\Model
             if ($member === false) {
                 $memberUuid = self::uuid2bin(self::generateUuid());
                 $insert = $db->prepare('INSERT INTO member (uuid, email, username, password) VALUES (?, ?, ?, ?)');
-                $insert->execute([$memberUuid, $email, $username, $hash]);
+                SqlDialect::bindBinary($db, $insert, 1, $memberUuid);
+                $insert->bindValue(2, $email);
+                $insert->bindValue(3, $username);
+                $insert->bindValue(4, $hash);
+                $insert->execute();
             } else {
                 if ($member['username'] !== null) {
                     return false;
                 }
-                $memberUuid = $member['uuid'];
+                $memberUuid = self::readBinary($member['uuid']);
                 $update = $db->prepare('UPDATE member SET username = ?, password = ? WHERE uuid = ? AND username IS NULL');
-                $update->execute([$username, $hash, $memberUuid]);
+                $update->bindValue(1, $username);
+                $update->bindValue(2, $hash);
+                SqlDialect::bindBinary($db, $update, 3, $memberUuid);
+                $update->execute();
                 if ($update->rowCount() !== 1) {
                     return false;
                 }
@@ -163,9 +170,15 @@ class Member extends \PressDo\App\Core\Model
             $documentUuid = self::uuid2bin(self::generateUuid());
             $revisionUuid = self::uuid2bin(self::generateUuid());
             $insert = $db->prepare("INSERT INTO document (uuid, namespace, title, backlink_updated) VALUES (?, '사용자', ?, 1)");
-            $insert->execute([$documentUuid, $username]);
+            SqlDialect::bindBinary($db, $insert, 1, $documentUuid);
+            $insert->bindValue(2, $username);
+            $insert->execute();
             $insert = $db->prepare("INSERT INTO history (uuid, document, datetime, action, contributor_m) VALUES (?, ?, ?, 'create', ?)");
-            $insert->execute([$revisionUuid, $documentUuid, time(), $memberUuid]);
+            SqlDialect::bindBinary($db, $insert, 1, $revisionUuid);
+            SqlDialect::bindBinary($db, $insert, 2, $documentUuid);
+            $insert->bindValue(3, time(), PDO::PARAM_INT);
+            SqlDialect::bindBinary($db, $insert, 4, $memberUuid);
+            $insert->execute();
 
             return true;
         }, $ip);
@@ -195,8 +208,9 @@ class Member extends \PressDo\App\Core\Model
     {
         $db = self::db();
         try {
-            $d = $db->prepare("SELECT `email`, `perm`, `totp_secret` FROM `member` WHERE uuid=?");
-            $d->execute([self::uuid2bin($uuid)]);
+            $d = $db->prepare('SELECT email, perm, totp_secret FROM member WHERE uuid = ?');
+            SqlDialect::bindBinary($db, $d, 1, self::uuid2bin($uuid));
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 사용자 정보 조회 중 오류 발생');
         }
@@ -244,8 +258,9 @@ class Member extends \PressDo\App\Core\Model
     {
         $db = self::db();
         try {
-            $d = $db->prepare("SELECT `name`, `registered`, `lastuse`, client_data FROM `webauthn` WHERE uuid=? ORDER BY registered ASC");
-            $d->execute([self::uuid2bin($uuid)]);
+            $d = $db->prepare('SELECT name, registered, lastuse, client_data FROM webauthn WHERE uuid = ? ORDER BY registered ASC');
+            SqlDialect::bindBinary($db, $d, 1, self::uuid2bin($uuid));
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': Webauthn 목록 조회 중 오류 발생');
         }
@@ -297,7 +312,10 @@ class Member extends \PressDo\App\Core\Model
 
         try {
             $update = $db->prepare("UPDATE member SET perm = ? WHERE uuid = ? AND COALESCE(perm, '') = ?");
-            $update->execute([implode(',', $perms), $target, $expected]);
+            $update->bindValue(1, implode(',', $perms));
+            SqlDialect::bindBinary($db, $update, 2, $target);
+            $update->bindValue(3, $expected);
+            $update->execute();
             if ($update->rowCount() !== 1) {
                 $db->rollBack();
                 return false;
@@ -306,7 +324,10 @@ class Member extends \PressDo\App\Core\Model
             $audit = $db->prepare(SqlDialect::normalizeIdentifiers(
                 "INSERT INTO `BlockHistory` (executor_m, target_member, action, granted) VALUES (?, ?, 'grant', ?)"
             ));
-            $audit->execute([$executor, $target, $record]);
+            SqlDialect::bindBinary($db, $audit, 1, $executor);
+            SqlDialect::bindBinary($db, $audit, 2, $target);
+            $audit->bindValue(3, $record);
+            $audit->execute();
 
             return $db->commit();
         } catch (\Throwable $err) {

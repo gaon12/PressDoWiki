@@ -42,3 +42,79 @@ jobs:
 
       - name: Run checks
         run: composer check
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: pressdo_ci_root
+          MARIADB_DATABASE: pressdo_test
+          MARIADB_USER: pressdo_test
+          MARIADB_PASSWORD: pressdo_ci
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pressdo_test
+          POSTGRES_USER: pressdo_test
+          POSTGRES_PASSWORD: pressdo_ci
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U pressdo_test -d pressdo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PRESSDO_TEST_DB_NAME: pressdo_test
+      PRESSDO_TEST_DB_USER: pressdo_test
+      PRESSDO_TEST_DB_PASSWORD: pressdo_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, pdo_pgsql, zip
+          coverage: none
+          tools: composer:v2
+
+      - run: composer install --prefer-dist --no-progress
+
+      - name: Load MariaDB schema
+        env:
+          DATABASE_CONTAINER: ${{ job.services.mariadb.id }}
+          MYSQL_PWD: ${{ env.PRESSDO_TEST_DB_PASSWORD }}
+        run: |
+          # The stock image uses InnoDB for the unrelated search table when Mroonga is unavailable.
+          docker exec -i -e MYSQL_PWD "$DATABASE_CONTAINER" mariadb \
+            --user="$PRESSDO_TEST_DB_USER" "$PRESSDO_TEST_DB_NAME" < templates/database_scheme.sql
+
+      - name: Load PostgreSQL schema
+        env:
+          DATABASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$DATABASE_CONTAINER" psql --set=ON_ERROR_STOP=1 \
+            --username="$PRESSDO_TEST_DB_USER" --dbname="$PRESSDO_TEST_DB_NAME" < templates/database_scheme.pgsql.sql
+
+      - name: Test MariaDB
+        env:
+          PRESSDO_TEST_DB_DRIVER: mysql
+          PRESSDO_TEST_DB_PORT: ${{ job.services.mariadb.ports[3306] }}
+        run: php tests/Integration/DatabaseSecurityFlowTest.php
+
+      - name: Test PostgreSQL
+        env:
+          PRESSDO_TEST_DB_DRIVER: pgsql
+          PRESSDO_TEST_DB_PORT: ${{ job.services.postgres.ports[5432] }}
+        run: php tests/Integration/DatabaseSecurityFlowTest.php

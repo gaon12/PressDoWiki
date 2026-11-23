@@ -6,6 +6,7 @@ use ErrorException as ErrorException;
 use PDO as PDO;
 use PDOException as PDOException;
 use PressDo\App\Helpers\Database;
+use PressDo\App\Helpers\SqlDialect;
 
 class Model
 {
@@ -59,8 +60,9 @@ class Model
         $db = self::db();
         $id = self::uuid2bin($uuid);
         try {
-            $d = $db->prepare('SELECT `rev` FROM `history` WHERE `document`=? ORDER BY `rev` DESC LIMIT 1');
-            $d->execute([$id]);
+            $d = $db->prepare('SELECT rev FROM history WHERE document = ? ORDER BY rev DESC LIMIT 1');
+            SqlDialect::bindBinary($db, $d, 1, $id);
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage() . ': 문서 버전 조회 중 오류 발생');
         }
@@ -101,8 +103,9 @@ class Model
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         try {
-            $d = $db->prepare('SELECT `perm` FROM `member` WHERE `uuid`=?');
-            $d->execute([$uuid]);
+            $d = $db->prepare('SELECT perm FROM member WHERE uuid = ?');
+            SqlDialect::bindBinary($db, $d, 1, $uuid);
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage() . ': 특별권한 조회 중 오류 발생');
         }
@@ -132,5 +135,15 @@ class Model
     public static function uuid2bin(string $uuid): string
     {
         return hex2bin(str_replace('-', '', $uuid));
+    }
+
+    /** PostgreSQL returns BYTEA columns as streams. */
+    protected static function readBinary(mixed $value): ?string
+    {
+        if (is_resource($value)) {
+            $value = stream_get_contents($value);
+        }
+
+        return is_string($value) ? $value : null;
     }
 }

@@ -36,6 +36,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/File',
         __DIR__.'/tests/Uploaders',
         __DIR__.'/tests/Infrastructure',
+        __DIR__.'/tests/Integration',
         __DIR__.'/tests/Mark',
         __DIR__.'/tests/Admin',
         __DIR__.'/tests/Backlink',

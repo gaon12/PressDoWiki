@@ -139,3 +139,16 @@ max, the current test suite, and known dependency advisories.
 이미 로그인한 브라우저와 진행 중인 2단계 인증은 다음 요청부터 새 비밀번호로
 다시 로그인해야 합니다. 이 변경을 처음 배포하면 기존 세션을 다시 확인하며,
 유효한 로그인 유지 쿠키가 있으면 자동으로 새 세션을 시작합니다.
+
+## 데이터베이스 통합 테스트
+
+`composer test`는 SQLite 메모리 DB로 회원가입, 로그인, 비밀번호 재설정,
+권한 부여와 감사 기록, 편집 요청의 리비전 생성을 확인합니다. GitHub Actions는
+같은 테스트를 MariaDB 10.11과 PostgreSQL 16에서도 실행합니다.
+
+로컬에서 서버 DB를 검증하려면 테스트 전용 DB에 해당 설치 스키마를 불러온
+뒤 `PRESSDO_TEST_DB_DRIVER`를 `mysql` 또는 `pgsql`로 설정하고
+`php tests/Integration/DatabaseSecurityFlowTest.php`를 실행합니다. 접속 설정은
+`PRESSDO_TEST_DB_HOST`, `PRESSDO_TEST_DB_PORT`, `PRESSDO_TEST_DB_NAME`,
+`PRESSDO_TEST_DB_USER`, `PRESSDO_TEST_DB_PASSWORD`로 지정합니다.
+테스트는 DB에 임의의 계정, 편집 요청과 감사 기록을 생성합니다.

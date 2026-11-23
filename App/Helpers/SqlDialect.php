@@ -2,6 +2,9 @@
 
 namespace PressDo\App\Helpers;
 
+use PDO;
+use PDOStatement;
+
 class SqlDialect
 {
     public static function isMysql(): bool
@@ -100,6 +103,13 @@ class SqlDialect
         }
 
         return 'HEX(' . $expression . ')';
+    }
+
+    public static function bindBinary(PDO $database, PDOStatement $statement, int $parameter, ?string $value): void
+    {
+        // Preserve the parameter type used for existing SQLite identifiers.
+        $type = $database->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql' ? PDO::PARAM_LOB : PDO::PARAM_STR;
+        $statement->bindValue($parameter, $value, $value === null ? PDO::PARAM_NULL : $type);
     }
 
     public static function blockHistoryTextCondition(): string

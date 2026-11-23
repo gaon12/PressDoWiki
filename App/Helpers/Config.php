@@ -30,7 +30,7 @@ class Config
     {
         if (empty(static::$Configs)) {
             $instance = self::db();
-            $d = $instance->query('SELECT `key`, `value` FROM config');
+            $d = $instance->query(SqlDialect::normalizeIdentifiers('SELECT `key`, `value` FROM config'));
             $cset = array_merge(DefaultConfig::all(), $d->fetchAll(\PDO::FETCH_GROUP | \PDO::FETCH_COLUMN));
             $carray = [];
             foreach ($cset as $k => $c) {

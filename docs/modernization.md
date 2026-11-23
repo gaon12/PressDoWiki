@@ -89,6 +89,12 @@ has no enforceable seams between them.
   cost and prevent normal dependency updates.
 - Supporting many nominal database drivers through handwritten SQL branches
   creates complexity without a compatibility test matrix for those drivers.
+  CI now imports the shipped schemas and runs an integration flow against
+  MariaDB 10.11 and PostgreSQL 16. The same flow runs on SQLite with
+  `composer test`. It checks authentication and session credentials, permission
+  persistence and audit, and edit-request transitions with revision creation.
+  The stock MariaDB CI image uses InnoDB for the search table, outside the
+  coverage of this flow.
 
 Performance optimization before these seams exist would mostly be guesswork.
 

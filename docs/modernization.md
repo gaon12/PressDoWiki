@@ -84,6 +84,11 @@ has no enforceable seams between them.
   Password reset revokes sessions and pending login challenges on their next
   request, and deletes persistent cookies in the reset transaction. This
   rollout uses the existing database schema.
+- The versioned login-limit table uses atomic per-account and per-IP reservations
+  before password checks, second-factor checks, and login email dispatch.
+  The counters are shared across application workers using the same database.
+  Existing challenge expiry and retry limits continue to apply. Bucket keys are
+  hashed and expired counters are cleared opportunistically during login.
 
 ### Performance work has no reliable measurement point
 

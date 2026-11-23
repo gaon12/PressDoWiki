@@ -3,8 +3,8 @@ namespace PressDo\App\Controllers\Pages\Member;
 
 use PressDo\App\Models\Member;
 use PressDo\App\Core\{Controller,Response};
-use PressDo\App\Helpers\{Languages,Config};
-use PressDo\App\Http\Security\{LoginChallenge, SessionLifecycle};
+use PressDo\App\Helpers\{Languages, Config, Database};
+use PressDo\App\Http\Security\{LoginChallenge, LoginRateLimiter, LoginRateScope, SessionLifecycle};
 use lbuchs\WebAuthn\WebAuthn;
 use lbuchs\WebAuthn\WebAuthnException;
 use OTPHP\TOTP;
@@ -41,6 +41,14 @@ class Login extends Controller
             }
 
             if ($this->request->isMethod('POST')) {
+                $limiter = new LoginRateLimiter(Database::getInstance());
+                $wait = $limiter->reserve(LoginRateScope::FactorIp, $this->session['ip'], $now)
+                    ?: $limiter->reserve(LoginRateScope::FactorAccount, $pendingUser, $now);
+                if ($this->showRateLimit($page['data'], $wait)) {
+                    $page['data'] += $this->session['factor_view'] ?? [];
+                    return $page;
+                }
+
                 if ($this->request->hasPost('challenge') && ($this->session['do2fa'] ?? null) === 'webauthn') {
                     $this->verifyWebAuthn($page);
                 } elseif (preg_match('/\A[0-9]{6}\z/', $this->request->postString('pin')) === 1) {
@@ -66,7 +74,11 @@ class Login extends Controller
             return $page;
         }
 
-        if (!$this->request->hasPost('username') || !$this->request->hasPost('password')) {
+        if (!$this->request->isMethod('POST') || !$this->request->hasPost('username') || !$this->request->hasPost('password')) {
+            return $page;
+        }
+        $limiter = new LoginRateLimiter(Database::getInstance());
+        if ($this->showRateLimit($page['data'], $limiter->reserve(LoginRateScope::PasswordIp, $this->session['ip'], time()))) {
             return $page;
         }
         if (!self::validateCaptcha($this->request->postString($this->api_config['captcha_token_name'] ?? ''))) {
@@ -74,7 +86,21 @@ class Login extends Controller
             return $page;
         }
 
-        $credentials = Member::checkMember($this->request->postString('username'), $this->request->postString('password'));
+        $login = $this->request->postString('username');
+        $wait = 0;
+        $credentials = Member::checkMember(
+            $login,
+            $this->request->postString('password'),
+            static function (?string $uuid) use ($limiter, $login, &$wait): bool {
+                $identity = $uuid === null ? 'identifier:' . mb_strtolower(trim($login)) : 'member:' . $uuid;
+                $wait = $limiter->reserve(LoginRateScope::PasswordAccount, $identity, time());
+
+                return $wait === 0;
+            },
+        );
+        if ($this->showRateLimit($page['data'], $wait)) {
+            return $page;
+        }
         if ($credentials === false) {
             $page['data']['error'] = 'err_invalid_member';
             return $page;
@@ -91,9 +117,21 @@ class Login extends Controller
         }
 
         LoginChallenge::begin($this->session, time());
-        $this->setup2fa($uuid, $page['data']);
+        $this->setup2fa($uuid, $page['data'], $limiter);
 
         return $page;
+    }
+
+    private function showRateLimit(array &$data, int $wait): bool
+    {
+        if ($wait === 0) {
+            return false;
+        }
+
+        http_response_code(429);
+        header('Retry-After: ' . $wait);
+        $data['error'] = 'err_login_rate_limited';
+        return true;
     }
 
     private function clearSecondFactor(): void
@@ -109,7 +147,7 @@ class Login extends Controller
         );
     }
 
-    private function setup2fa(string $uuid, array &$data): void
+    private function setup2fa(string $uuid, array &$data, LoginRateLimiter $limiter): void
     {
         $user = Member::getUserInfo($uuid);
         if (!is_array($user) || !is_string($user['email'] ?? null)) {
@@ -149,6 +187,14 @@ class Login extends Controller
                 $this->session['challenge'] = $webauthn->getChallenge();
             }
         } elseif (!$hasTotp) {
+            $now = time();
+            $wait = $limiter->reserve(LoginRateScope::MailIp, $this->session['ip'], $now)
+                ?: $limiter->reserve(LoginRateScope::MailAccount, $uuid, $now);
+            if ($this->showRateLimit($data, $wait)) {
+                $this->clearSecondFactor();
+                return;
+            }
+
             $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $this->session['pin'] = $pin;
             $lang = Languages::get('mail');

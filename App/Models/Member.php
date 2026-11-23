@@ -13,9 +13,10 @@ class Member extends \PressDo\App\Core\Model
      * check member info
      * @param string $id        username/email
      * @param string $pw      userpw
+     * @param (callable(?string): bool)|null $beforeVerify
      * @return array{uuid: string, credential: string}|false
      */
-    public static function checkMember(string $id, string $pw): array|false
+    public static function checkMember(string $id, string $pw, ?callable $beforeVerify = null): array|false
     {
         $db = self::db();
         try {
@@ -26,14 +27,19 @@ class Member extends \PressDo\App\Core\Model
         }
         
         $user = $d->fetch(PDO::FETCH_ASSOC);
-        
-        // not found
-        if ($user === false || !is_string($user['password']) || !password_verify($pw, $user['password']))
+        $d->closeCursor();
+        $hash = $user['password'] ?? null;
+        $uuid = is_string($hash) ? self::bin2uuid(hex2bin($user['uuid_hex'])) : null;
+        if ($beforeVerify !== null && !$beforeVerify($uuid)) {
             return false;
-        
+        }
+        if ($uuid === null || !password_verify($pw, $hash)) {
+            return false;
+        }
+
         return [
-            'uuid' => self::bin2uuid(hex2bin($user['uuid_hex'])),
-            'credential' => SessionLifecycle::credential($user['password']),
+            'uuid' => $uuid,
+            'credential' => SessionLifecycle::credential($hash),
         ];
     }
 

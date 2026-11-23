@@ -9,7 +9,10 @@ use PressDo\App\Helpers\DefaultConfig;
 use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Http\Security\EmailVerificationPurpose;
 use PressDo\App\Http\Security\LoginChallenge;
+use PressDo\App\Http\Security\LoginRateLimiter;
+use PressDo\App\Http\Security\LoginRateScope;
 use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Infrastructure\Database\SchemaMigrator;
 use PressDo\App\Models\Member;
 
 $root = dirname(__DIR__, 2);
@@ -29,6 +32,7 @@ if (($argv[1] ?? null) === '--fixture') {
     (new ReflectionProperty(DefaultConfig::class, 'DefConfig'))->setValue(null, $config);
     $database = Database::getInstance();
     $database->exec(file_get_contents($root . '/templates/database_scheme.sqlite.sql'));
+    (new SchemaMigrator($database))->migrate();
 
     $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
     $_SERVER['REQUEST_URI'] = $requestUri;
@@ -40,7 +44,7 @@ if (($argv[1] ?? null) === '--fixture') {
         $_POST['_csrf'] = $token;
     }
 
-    if (str_starts_with($tokenMode, 'factor-') || str_starts_with($tokenMode, 'session-')) {
+    if (str_starts_with($tokenMode, 'factor-') || str_starts_with($tokenMode, 'session-') || $tokenMode === 'password-rate') {
         $uuid = '00000000-0000-4000-8000-000000000001';
         $email = 'fixture@example.test';
         $passwordHash = password_hash('fixture-password', PASSWORD_BCRYPT, ['cost' => 4]);
@@ -55,11 +59,29 @@ if (($argv[1] ?? null) === '--fixture') {
             $_SESSION['factor_view'] = ['force_2fa' => true, 'use_totp' => false, 'use_webauthn' => false, 'otp_email' => $email];
             LoginChallenge::begin($_SESSION, $tokenMode === 'factor-expired' ? time() - 601 : time());
             $_POST['pin'] = '123456';
-        } else {
+        } elseif (str_starts_with($tokenMode, 'session-')) {
             $_SESSION['uuid'] = $uuid;
             $_SESSION['member'] = ['username' => 'fixture'];
             if ($tokenMode !== 'session-legacy') {
                 $_SESSION['credential'] = $credential;
+            }
+        } else {
+            $_POST['username'] = $email;
+            $_POST['password'] = 'fixture-password';
+        }
+        if ($tokenMode === 'factor-rate' || $tokenMode === 'password-rate') {
+            $limiter = new LoginRateLimiter($database);
+            $scope = $tokenMode === 'factor-rate' ? LoginRateScope::FactorAccount : LoginRateScope::PasswordAccount;
+            $identity = $tokenMode === 'factor-rate' ? $uuid : 'member:' . $uuid;
+            [$attempts, $window] = $scope->policy();
+            $now = time();
+            // Avoid seeding a window that will end during the request fixture.
+            if ($now % $window === $window - 1) {
+                sleep(1);
+                $now = time();
+            }
+            for ($attempt = 0; $attempt < $attempts; ++$attempt) {
+                $limiter->reserve($scope, $identity, $now);
             }
         }
         if (str_ends_with($tokenMode, '-reset')) {
@@ -142,6 +164,13 @@ foreach (['factor-expired', 'factor-reset'] as $factor) {
     [$expired, $status] = browserBoundaryRequest('/member/login', 'POST', $factor);
     if ($status !== 200 || !str_contains($expired, '시도 횟수를 초과했습니다')) {
         throw new RuntimeException('An expired or revoked second factor must restart login.');
+    }
+}
+
+foreach (['factor-rate', 'password-rate'] as $limited) {
+    [$login, $status] = browserBoundaryRequest('/member/login', 'POST', $limited);
+    if ($status !== 429 || !str_contains($login, '로그인 시도가 너무 많습니다')) {
+        throw new RuntimeException('An exhausted cross-session login quota must block the request.');
     }
 }
 

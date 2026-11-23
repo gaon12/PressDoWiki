@@ -10,6 +10,8 @@ use PressDo\App\Helpers\DefaultConfig;
 use PressDo\App\Helpers\SqlDialect;
 use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Http\Security\EmailVerificationPurpose as Purpose;
+use PressDo\App\Http\Security\LoginRateLimiter;
+use PressDo\App\Http\Security\LoginRateScope;
 use PressDo\App\Http\Security\PermissionGrantPolicy;
 use PressDo\App\Http\Security\SessionLifecycle;
 use PressDo\App\Infrastructure\Database\SchemaMigrator;
@@ -110,6 +112,28 @@ expectDatabaseFlow($applied === [1] || $applied === [], 'The login-limit schema 
 expectDatabaseFlow($migrations->migrate() === [], 'Re-running migrations must leave the database up to date.');
 expectDatabaseFlow((int) $db->query('SELECT COUNT(*) FROM schema_migrations WHERE version = 1')->fetchColumn() === 1, 'The migration version must be recorded exactly once.');
 expectDatabaseFlow(Member::exist($actor['username']) === $actor, 'The migration must preserve existing members.');
+$limits = new LoginRateLimiter($db);
+$current = time();
+foreach (LoginRateScope::cases() as $scope) {
+    [$capacity, $window] = $scope->policy();
+    $start = intdiv($current, $window) * $window;
+    $identity = str_ends_with($scope->value, ':ip') ? '2001:db8::' . substr($suffix, 0, 4) . ':' . substr($suffix, 4, 4) : $suffix;
+    for ($i = 0; $i < $capacity; ++$i) {
+        expectDatabaseFlow($limits->reserve($scope, $identity, $start) === 0, 'Each scope should have its own quota.');
+    }
+    expectDatabaseFlow(
+        (new LoginRateLimiter($db))->reserve($scope, $identity, $start + $window - 1) === 1,
+        'A separate limiter must see the shared exhausted quota and the remaining wait.',
+    );
+    expectDatabaseFlow($limits->reserve($scope, $identity, $start + $window) === 0, 'A fresh window must restore capacity.');
+}
+$candidate = static function (?string $uuid) use ($actor): bool {
+    expectDatabaseFlow($uuid === $actor['uuid'], 'Username and email must identify the same login-limit account.');
+
+    return false;
+};
+expectDatabaseFlow(Member::checkMember($actor['email'], 'test-start-password', $candidate) === false, 'An email login must respect the account quota.');
+expectDatabaseFlow(Member::checkMember($actor['username'], 'test-start-password', $candidate) === false, 'A username login must respect the same account quota.');
 $target = createFlowAccount('target_' . $suffix, $ip);
 $credentials = Member::checkMember($actor['email'], 'test-start-password');
 expectDatabaseFlow(is_array($credentials) && $credentials['uuid'] === $actor['uuid'], 'Password authentication must find the correct account.');

@@ -61,7 +61,8 @@ class NewEditRequest extends Controller
                 $_POST['comment'],
                 $member,
                 $ip,
-                $doc['rev']
+                $doc['rev'],
+                mb_strlen($this->content) - mb_strlen($doc['content']),
             );
             
 

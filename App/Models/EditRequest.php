@@ -21,10 +21,11 @@ class EditRequest extends \PressDo\App\Core\Model
      * @param mixed $cont_m
      * @param mixed $cont_i
      * @param int $rv
+     * @param int $lengthDelta
      * @throws \ErrorException
      * @return void
      */
-    public static function create(string $slug, string $uuid, string $content, string $comment, ?string $cont_m, ?string $cont_i, int $rv): void
+    public static function create(string $slug, string $uuid, string $content, string $comment, ?string $cont_m, ?string $cont_i, int $rv, int $lengthDelta): void
     {
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
@@ -35,7 +36,7 @@ class EditRequest extends \PressDo\App\Core\Model
             $cont_i = self::uuid2bin($cont_i);
 
         try {
-            $e = $db->prepare('INSERT INTO editrequest (urlstr, document, comment, content, contributor_m, contributor_i, baserev) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $e = $db->prepare('INSERT INTO editrequest (urlstr, document, comment, content, contributor_m, contributor_i, baserev, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
             $e->bindValue(1, $slug);
             SqlDialect::bindBinary($db, $e, 2, $uuid);
             $e->bindValue(3, $comment);
@@ -43,6 +44,7 @@ class EditRequest extends \PressDo\App\Core\Model
             SqlDialect::bindBinary($db, $e, 5, $cont_m);
             SqlDialect::bindBinary($db, $e, 6, $cont_i);
             $e->bindValue(7, $rv, PDO::PARAM_INT);
+            $e->bindValue(8, $lengthDelta, PDO::PARAM_INT);
             $e->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 생성 중 오류 발생');

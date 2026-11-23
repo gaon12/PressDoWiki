@@ -89,8 +89,9 @@ $document = $db->prepare('SELECT ' . SqlDialect::binaryHex('uuid') . ' FROM docu
 $document->execute([$target['username']]);
 $documentId = Model::bin2uuid(hex2bin($document->fetchColumn()));
 $slug = 'edit_' . $suffix;
-EditRequest::create($slug, $documentId, '편집 요청 본문', 'request', $target['uuid'], null, 1);
+EditRequest::create($slug, $documentId, '편집 요청 본문', 'request', $target['uuid'], null, 1, 8);
 expectDatabaseFlow(EditRequest::getBulk($documentId) === [['urlstr' => $slug]], 'The edit request should be listed as open.');
+expectDatabaseFlow((int) EditRequest::get($slug)['count'] === 8, 'Creation should persist its initial character delta.');
 EditRequest::modify($slug, '수정한 본문', 'updated', 6);
 EditRequest::close($slug, 'closed', $actor['uuid'], null);
 expectDatabaseFlow(EditRequest::get($slug)['status'] === 'close', 'The edit request should be closed.');

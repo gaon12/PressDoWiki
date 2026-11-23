@@ -49,21 +49,19 @@ final class SessionLifecycle
 
     /**
      * @param array<string, mixed> $session
-     * @param callable(string): ?string $lookupCredential
+     * @param callable(string, string, string): bool $validate
      */
-    public static function discardStaleIdentity(array &$session, callable $lookupCredential): void
+    public static function discardStaleIdentity(array &$session, callable $validate): void
     {
         if (empty($session['member'])) {
             return;
         }
 
         $uuid = $session['uuid'] ?? null;
+        $id = $session['device_session'] ?? null;
         $credential = $session['credential'] ?? null;
-        if (is_string($uuid) && is_string($credential)) {
-            $current = $lookupCredential($uuid);
-            if ($current !== null && hash_equals($current, $credential)) {
-                return;
-            }
+        if (is_string($uuid) && is_string($id) && is_string($credential) && $validate($uuid, $id, $credential)) {
+            return;
         }
 
         $session = [];

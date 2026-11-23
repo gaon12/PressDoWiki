@@ -6,6 +6,7 @@ use PressDo\App\Core\Model;
 use PressDo\App\Helpers\Database;
 use PressDo\App\Http\Security\EmailVerification;
 use PressDo\App\Http\Security\EmailVerificationPurpose as Purpose;
+use PressDo\App\Infrastructure\Database\SchemaMigrator;
 use PressDo\App\Models\Member;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
@@ -24,6 +25,7 @@ function expectEmailVerification(bool $passed, string $failure): void
 
 $database = new PDO('sqlite::memory:', options: [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 $database->exec(file_get_contents(dirname(__DIR__, 2) . '/templates/database_scheme.sqlite.sql'));
+(new SchemaMigrator($database))->migrate();
 (new ReflectionProperty(Model::class, 'db'))->setValue(null, $database);
 (new ReflectionProperty(Database::class, 'driver'))->setValue(null, 'sqlite');
 
@@ -57,9 +59,10 @@ expectEmailVerification(
     $credentials !== false && Member::sessionCredential($member['uuid']) === $credentials['credential'],
     'The session credential must correspond to the password that was verified.',
 );
-$remember = Member::saveCookies($member['uuid'], 'szczecin', 600);
+$login = Member::login($member['uuid'], $credentials['credential'], $ip, 'fixture', ['szczecin' => 600, 'podgorica' => 600]);
+$remember = $login['cookies']['szczecin'];
 expectEmailVerification(Member::rememberCookieIdentity($remember) === $credentials, 'Remember-me should capture the current credential.');
-$trusted = Member::saveCookies($member['uuid'], 'podgorica', 600);
+$trusted = $login['cookies']['podgorica'];
 $reset = Member::issueEmailCode($email, $ip, Purpose::PasswordReset);
 expectEmailVerification(is_string($reset), 'A reset request should issue a token.');
 expectEmailVerification($service->verify($reset, Purpose::Signup, $ip) === null, 'A reset must never authorize a signup.');
@@ -74,7 +77,7 @@ expectEmailVerification(
 );
 expectEmailVerification(
     Member::login($member['uuid'], $credentials['credential'], $ip, 'fixture', ['szczecin' => 600]) === null
-        && (int) $database->query('SELECT COUNT(*) FROM cookies')->fetchColumn() === 0,
+        && (int) $database->query('SELECT COUNT(*) FROM member_sessions')->fetchColumn() === 0,
     'An old credential must neither finish login nor issue new cookies.',
 );
 expectEmailVerification(
@@ -87,9 +90,11 @@ expectEmailVerification(is_string($expired), 'A second reset should receive a ne
 $database->prepare('UPDATE email_keys SET time = ?')->execute([time() - 1_801]);
 expectEmailVerification(!Member::completePasswordReset($expired, 'expired-password!'), 'An expired reset must not change the password.');
 
-$trusted = Member::saveCookies($member['uuid'], 'podgorica', 600);
+$device = Member::login($member['uuid'], $newCredentials['credential'], $ip, 'fixture', ['podgorica' => 600]);
+$trusted = $device['cookies']['podgorica'];
 expectEmailVerification(Member::setTotp($member['uuid'], 'JBSWY3DPEHPK3PXP'), 'TOTP enrollment should update the stored factor.');
 expectEmailVerification(Member::checkCookie('podgorica', $trusted) === null, 'TOTP enrollment must revoke prior device trust.');
+expectEmailVerification(Member::validateSession($member['uuid'], $device['device_session'], $newCredentials['credential']), 'Changing TOTP should preserve the current signed-in session.');
 expectEmailVerification(!Member::removeTotp($member['uuid'], 'WRONGSECRET'), 'A stale secret must not remove the current factor.');
 expectEmailVerification(Member::removeTotp($member['uuid'], 'JBSWY3DPEHPK3PXP'), 'TOTP removal should match the stored secret.');
 

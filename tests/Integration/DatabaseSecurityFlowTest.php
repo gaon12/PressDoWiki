@@ -209,6 +209,7 @@ expectDatabaseFlow(is_string($reset) && Member::completePasswordReset($reset, 't
 expectDatabaseFlow(Member::sessionCredential($actor['uuid']) !== $credentials['credential'], 'Password reset must revoke the old session credential.');
 expectDatabaseFlow(Member::rememberCookieIdentity($login['cookies']['szczecin']) === null, 'Password reset must revoke remembered logins.');
 expectDatabaseFlow(Member::checkCookie('podgorica', $login['cookies']['podgorica']) === null, 'Password reset must revoke trusted devices.');
+expectDatabaseFlow(!Member::validateSession($actor['uuid'], $login['device_session'], $credentials['credential']), 'Password reset must revoke the registered session.');
 expectDatabaseFlow(Member::login($actor['uuid'], $credentials['credential'], $ip, 'stale', ['szczecin' => 600]) === null, 'An in-flight login with the old credential must fail.');
 
 $policy = PermissionGrantPolicy::manageable(['grant', 'mark_troll_revision'], [], ['admin', 'mark_troll_revision'], false);
@@ -249,7 +250,9 @@ $revision->execute([$slug]);
 $saved = $revision->fetchAll();
 expectDatabaseFlow(count($saved) === 1 && $saved[0]['content'] === '수정한 본문' && (int) $saved[0]['rev'] === 2, 'Acceptance must persist one linked revision.');
 
-$trust = Member::saveCookies($actor['uuid'], 'podgorica', 600);
+$credential = Member::sessionCredential($actor['uuid']);
+$currentBrowser = Member::login($actor['uuid'], $credential, $ip, 'ci browser', ['podgorica' => 600]);
+$trust = $currentBrowser['cookies']['podgorica'];
 expectDatabaseResponse('/member/login', 302, [
     'username' => $actor['username'],
     'password' => 'test-reset-password',
@@ -257,7 +260,8 @@ expectDatabaseResponse('/member/login', 302, [
 
 $identity = [
     'uuid' => $actor['uuid'],
-    'credential' => Member::sessionCredential($actor['uuid']),
+    'credential' => $credential,
+    'device_session' => $currentBrowser['device_session'],
     'member' => ['username' => $actor['username']],
 ];
 $perm = $db->prepare("UPDATE member SET perm = 'grant,mark_troll_revision,delete_thread' WHERE uuid = ?");

@@ -4,6 +4,7 @@ namespace PressDo\App\Controllers\Pages\Member;
 
 use PressDo\App\Core\{Controller, Response};
 use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Http\Security\SessionRegistry;
 use PressDo\App\Models\Member;
 
 class Logout extends Controller
@@ -15,14 +16,12 @@ class Logout extends Controller
         }
 
         $uuid = $this->session['uuid'] ?? null;
-        foreach (['szczecin', 'podgorica'] as $name) {
-            if (!$this->request->hasCookie($name)) {
-                continue;
-            }
+        $id = $this->session['device_session'] ?? null;
+        if (is_string($uuid) && is_string($id)) {
+            Member::revokeLoginSession($uuid, $id);
+        }
 
-            if (is_string($uuid)) {
-                Member::deleteCookie($uuid, $name, $this->request->cookieString($name));
-            }
+        foreach ([SessionRegistry::REMEMBER, SessionRegistry::TRUST] as $name) {
             setcookie($name, '', self::getCookieOptions(-3600));
         }
 

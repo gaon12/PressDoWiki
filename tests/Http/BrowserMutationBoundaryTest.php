@@ -12,6 +12,7 @@ use PressDo\App\Http\Security\LoginChallenge;
 use PressDo\App\Http\Security\LoginRateLimiter;
 use PressDo\App\Http\Security\LoginRateScope;
 use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Http\Security\SessionRegistry;
 use PressDo\App\Infrastructure\Database\SchemaMigrator;
 use PressDo\App\Models\Member;
 
@@ -62,8 +63,9 @@ if (($argv[1] ?? null) === '--fixture') {
         } elseif (str_starts_with($tokenMode, 'session-')) {
             $_SESSION['uuid'] = $uuid;
             $_SESSION['member'] = ['username' => 'fixture'];
+            $_SESSION['credential'] = $credential;
             if ($tokenMode !== 'session-legacy') {
-                $_SESSION['credential'] = $credential;
+                $_SESSION['device_session'] = (new SessionRegistry($database))->create(Model::uuid2bin($uuid), 'fixture', time())['id'];
             }
         } else {
             $_POST['username'] = $email;

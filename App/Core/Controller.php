@@ -5,6 +5,7 @@ namespace PressDo\App\Core;
 use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
 use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Http\Security\SessionRegistry;
 use PressDo\App\Models\Member;
 use PressDo\App\Services\Mark\MarkHandler;
 use PressDo\App\Services\Mark\MarkupResult;
@@ -39,15 +40,22 @@ class Controller
         ];
 
         if (empty($this->session['member'])) {
-            $identity = Member::rememberCookieIdentity($this->request->cookieString('szczecin'));
+            $remember = $this->request->cookieString(SessionRegistry::REMEMBER);
+            $identity = Member::rememberCookieIdentity($remember);
             if ($identity !== null) {
                 $uuid = $identity['uuid'];
-                $member = Member::login($uuid, $identity['credential'], $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
+                $member = Member::login(
+                    $uuid,
+                    $identity['credential'],
+                    $this->session['ip'],
+                    $this->request->serverString('HTTP_USER_AGENT'),
+                    rememberToken: $remember,
+                );
                 if ($member !== null) {
                     $this->session = SessionLifecycle::authenticate(
                         $this->session,
                         self::getMemberData($uuid, $member['email'], $member['username'], $member['skin'])
-                            + ['credential' => $identity['credential']],
+                            + ['credential' => $identity['credential'], 'device_session' => $member['device_session']],
                     );
                 }
             }

@@ -17,7 +17,7 @@ $request = Request::fromGlobals();
 date_default_timezone_set(GeoIp::getTimezone($request->serverString('REMOTE_ADDR')) ?? Config::get('wiki.timezone'));
 
 SessionLifecycle::start($request, (string) Config::get('wiki.canonical_url'));
-SessionLifecycle::discardStaleIdentity($_SESSION, Member::sessionCredential(...));
+SessionLifecycle::discardStaleIdentity($_SESSION, Member::validateSession(...));
 
 header('Content-Security-Policy: ' . Csp::headerValue());
 header('X-Content-Type-Options: nosniff');

@@ -5,7 +5,7 @@ use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
 use PressDo\App\Helpers\SqlDialect;
-use PressDo\App\Http\Security\{EmailVerification, EmailVerificationPurpose, SessionLifecycle};
+use PressDo\App\Http\Security\{EmailVerification, EmailVerificationPurpose, SessionLifecycle, SessionRegistry};
 
 class Member extends \PressDo\App\Core\Model
 {
@@ -45,60 +45,106 @@ class Member extends \PressDo\App\Core\Model
 
     public static function sessionCredential(string $uuid): ?string
     {
-        $d = self::db()->prepare('SELECT password FROM member WHERE uuid = ? AND username IS NOT NULL');
-        $d->bindValue(1, self::uuid2bin($uuid), self::binaryParameterType());
+        $db = self::db();
+        $d = $db->prepare('SELECT password FROM member WHERE uuid = ? AND username IS NOT NULL');
+        SqlDialect::bindBinary($db, $d, 1, self::uuid2bin($uuid));
         $d->execute();
         $hash = $d->fetchColumn();
 
         return is_string($hash) ? SessionLifecycle::credential($hash) : null;
     }
 
+    public static function validateSession(string $uuid, string $id, string $credential): bool
+    {
+        return (new SessionRegistry(self::db()))->validate(self::uuid2bin($uuid), $id, $credential, time());
+    }
+
     /**
      * @param array<string, int> $cookieLifetimes
-     * @return array{username: string, email: string, skin: ?string, cookies: array<string, string>}|null
+     * @return array{username: string, email: string, skin: ?string, device_session: string, cookies: array<string, string>}|null
      */
-    public static function login(string $uuid, string $credential, string $ip, string $ua, array $cookieLifetimes = []): ?array
-    {
+    public static function login(
+        string $uuid,
+        string $credential,
+        string $ip,
+        string $ua,
+        array $cookieLifetimes = [],
+        ?string $rememberToken = null,
+        ?string $trustedToken = null,
+    ): ?array {
         $db = self::db();
         $member = self::uuid2bin($uuid);
         $db->beginTransaction();
 
         try {
-            // Share the account lock with password reset before issuing persistent cookies.
-            $lock = SqlDialect::isSqlite() ? '' : ' FOR UPDATE';
-            $d = $db->prepare('SELECT username, skin, email, password FROM member WHERE uuid = ? AND username IS NOT NULL' . $lock);
-            $d->bindValue(1, $member, self::binaryParameterType());
-            $d->execute();
-            $user = $d->fetch(PDO::FETCH_ASSOC);
+            $user = self::lockLoginAccount($db, $member);
             if (!is_string($user['password'] ?? null) || !hash_equals(SessionLifecycle::credential($user['password']), $credential)) {
                 $db->rollBack();
                 return null;
             }
 
+            $now = time();
+            $registry = new SessionRegistry($db);
+            $token = $rememberToken ?? $trustedToken;
+            if ($token === null) {
+                $device = $registry->create($member, $ua, $now, $cookieLifetimes);
+            } else {
+                $kind = $rememberToken !== null ? SessionRegistry::REMEMBER : SessionRegistry::TRUST;
+                $device = $registry->findByCookie($kind, $token, $now, lock: true);
+                if ($device === null || !hash_equals($member, $device['member'])) {
+                    $db->rollBack();
+                    return null;
+                }
+                if ($kind === SessionRegistry::TRUST) {
+                    $device['cookies'] = $registry->renewRemember($member, $device['id'], $cookieLifetimes[SessionRegistry::REMEMBER] ?? null, $now);
+                } else {
+                    $registry->touch($member, $device['id'], $now);
+                    $device['cookies'] = [];
+                }
+            }
+
             $d = $db->prepare('INSERT INTO login_history (uuid, ip) VALUES (?, ?)');
-            $d->bindValue(1, $member, self::binaryParameterType());
+            SqlDialect::bindBinary($db, $d, 1, $member);
             $d->bindValue(2, $ip);
             $d->execute();
 
             $d = $db->prepare('UPDATE member SET last_login_ua = ? WHERE uuid = ?');
             $d->bindValue(1, $ua);
-            $d->bindValue(2, $member, self::binaryParameterType());
+            SqlDialect::bindBinary($db, $d, 2, $member);
             $d->execute();
-
-            $cookies = [];
-            foreach ($cookieLifetimes as $name => $lifetime) {
-                $cookies[$name] = self::saveCookies($uuid, $name, $lifetime);
-            }
 
             $db->commit();
 
-            return ['username' => $user['username'], 'email' => $user['email'], 'skin' => $user['skin'], 'cookies' => $cookies];
+            return [
+                'username' => $user['username'],
+                'email' => $user['email'],
+                'skin' => $user['skin'],
+                'device_session' => $device['id'],
+                'cookies' => $device['cookies'],
+            ];
         } catch (\Throwable $error) {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
             throw $error;
         }
+    }
+
+    private static function lockLoginAccount(PDO $db, string $member): array|false
+    {
+        $sqlite = $db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        if ($sqlite) {
+            // Acquire SQLite's write lock before reading credentials or browser tokens.
+            $d = $db->prepare('UPDATE member SET last_login_ua = last_login_ua WHERE uuid = ?');
+            SqlDialect::bindBinary($db, $d, 1, $member);
+            $d->execute();
+        }
+        $d = $db->prepare('SELECT username, skin, email, password FROM member WHERE uuid = ? AND username IS NOT NULL'
+            . ($sqlite ? '' : ' FOR UPDATE'));
+        SqlDialect::bindBinary($db, $d, 1, $member);
+        $d->execute();
+
+        return $d->fetch(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -205,6 +251,8 @@ class Member extends \PressDo\App\Core\Model
                 'DELETE FROM cookies WHERE `user` = (SELECT uuid FROM member WHERE email = ?)'
             ));
             $revoke->execute([$email]);
+            $revokeSessions = $db->prepare('DELETE FROM member_sessions WHERE member_id = (SELECT uuid FROM member WHERE email = ?)');
+            $revokeSessions->execute([$email]);
 
             return true;
         });
@@ -242,14 +290,19 @@ class Member extends \PressDo\App\Core\Model
 
         try {
             $update = $db->prepare("UPDATE member SET totp_secret = ? WHERE uuid = ? AND COALESCE(totp_secret, '') = ?");
-            $update->execute([$secret, $member, $previous]);
+            $update->bindValue(1, $secret);
+            SqlDialect::bindBinary($db, $update, 2, $member);
+            $update->bindValue(3, $previous);
+            $update->execute();
             if ($update->rowCount() !== 1) {
                 $db->rollBack();
                 return false;
             }
 
             $revoke = $db->prepare(SqlDialect::normalizeIdentifiers('DELETE FROM cookies WHERE `user` = ?'));
-            $revoke->execute([$member]);
+            SqlDialect::bindBinary($db, $revoke, 1, $member);
+            $revoke->execute();
+            (new SessionRegistry($db))->revokePersistentCookies($member);
 
             return $db->commit();
         } catch (\Throwable $exception) {
@@ -417,111 +470,32 @@ class Member extends \PressDo\App\Core\Model
         return $d->fetch();
     }
 
-    /**
-     * Save cookie value to database.
-     * @param string $uuid
-     * @param string $name
-     * @param int $length
-     * @return string value of saved cookie (in hex)
-     */
-    public static function saveCookies(string $uuid, string $name, int $length): string
-    {
-        $db = self::db();
-        $exec = self::uuid2bin($uuid);
-        $token = random_bytes(16);
-
-        $d = $db->prepare(SqlDialect::normalizeIdentifiers("INSERT INTO cookies (`user`, `name`, `value`, expiry) VALUES (?,?,?,?)"));
-        $d->bindValue(1, $exec, self::binaryParameterType());
-        $d->bindValue(2, $name);
-        $d->bindValue(3, $token, self::binaryParameterType());
-        $d->bindValue(4, time() + $length, PDO::PARAM_INT);
-        $d->execute();
-        return bin2hex($token);
-    }
-
     /** @return array{uuid: string, credential: string}|null */
     public static function rememberCookieIdentity(string $value): ?array
     {
-        $token = self::decodeCookie($value);
-        if ($token === null) {
+        $uuid = self::checkCookie(SessionRegistry::REMEMBER, $value);
+        if ($uuid === null) {
             return null;
         }
 
-        $uuid = SqlDialect::binaryHex('member.uuid');
-        $d = self::db()->prepare(SqlDialect::normalizeIdentifiers(
-            "SELECT $uuid AS uuid_hex, member.password FROM cookies JOIN member ON member.uuid = cookies.`user`
-            WHERE cookies.name = 'szczecin' AND cookies.value = ? AND cookies.expiry > ? AND member.username IS NOT NULL"
-        ));
-        $d->bindValue(1, $token, self::binaryParameterType());
-        $d->bindValue(2, time(), PDO::PARAM_INT);
-        $d->execute();
-        $user = $d->fetch(PDO::FETCH_ASSOC);
-        if (!is_string($user['password'] ?? null)) {
-            return null;
-        }
-
-        return [
-            'uuid' => self::bin2uuid(hex2bin($user['uuid_hex'])),
-            'credential' => SessionLifecycle::credential($user['password']),
-        ];
+        $credential = self::sessionCredential($uuid);
+        return $credential === null ? null : ['uuid' => $uuid, 'credential' => $credential];
     }
 
     public static function checkCookie(string $name, string $value, ?string $expectedUser = null): ?string
     {
-        $token = self::decodeCookie($value);
-        if ($token === null) {
+        $device = (new SessionRegistry(self::db()))->findByCookie($name, $value, time());
+        if ($device === null) {
             return null;
         }
 
-        $db = self::db();
-        $userHex = SqlDialect::binaryHex('`user`');
-        $d = $db->prepare(SqlDialect::normalizeIdentifiers(
-            "SELECT $userHex FROM cookies WHERE `name` = ? AND `value` = ? AND expiry > ?"
-        ));
-        $d->bindValue(1, $name);
-        $d->bindValue(2, $token, self::binaryParameterType());
-        $d->bindValue(3, time(), PDO::PARAM_INT);
-        $d->execute();
-        $user = $d->fetchColumn();
-        if (!is_string($user)) {
-            return null;
-        }
-
-        $uuid = self::bin2uuid(hex2bin($user));
-
+        $uuid = self::bin2uuid($device['member']);
         return $expectedUser === null || $uuid === $expectedUser ? $uuid : null;
     }
 
-    public static function deleteCookie(string $uuid, string $name, string $value): void
+    public static function revokeLoginSession(string $uuid, string $id): void
     {
-        $token = self::decodeCookie($value);
-        if ($token === null) {
-            return;
-        }
-
-        $db = self::db();
-        $d = $db->prepare(SqlDialect::normalizeIdentifiers(
-            'DELETE FROM cookies WHERE `user` = ? AND `name` = ? AND `value` = ?'
-        ));
-        $d->bindValue(1, self::uuid2bin($uuid), self::binaryParameterType());
-        $d->bindValue(2, $name);
-        $d->bindValue(3, $token, self::binaryParameterType());
-        $d->execute();
-    }
-
-    private static function binaryParameterType(): int
-    {
-        // Existing SQLite schemas may hold identifiers written as TEXT parameters.
-        return SqlDialect::isPostgresql() ? PDO::PARAM_LOB : PDO::PARAM_STR;
-    }
-
-    private static function decodeCookie(string $value): ?string
-    {
-        if (strlen($value) !== 32 || !ctype_xdigit($value)) {
-            return null;
-        }
-
-        return hex2bin($value) ?: null;
+        (new SessionRegistry(self::db()))->revoke(self::uuid2bin($uuid), $id);
     }
 
 }

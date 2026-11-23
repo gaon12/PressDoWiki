@@ -121,6 +121,10 @@ has no enforceable seams between them.
   Migration 2 adds a registry of member sessions with their creation and
   activity timestamps and hashed browser credentials. Its runtime queries
   share the PDO SQL used for all three database engines.
+  The front controller requires a registered session before validating CSRF.
+  Remember-me restores the existing registry entry, and credential lookups
+  are repeated inside the login transaction. Local logout revokes that entry.
+  Password reset removes all of the account's entries in the reset transaction.
 
 Performance optimization before these seams exist would mostly be guesswork.
 

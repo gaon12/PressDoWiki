@@ -4,7 +4,7 @@ namespace PressDo\App\Controllers\Pages\Member;
 use PressDo\App\Models\Member;
 use PressDo\App\Core\{Controller,Response};
 use PressDo\App\Helpers\{Languages, Config, Database};
-use PressDo\App\Http\Security\{LoginChallenge, LoginRateLimiter, LoginRateScope, SessionLifecycle};
+use PressDo\App\Http\Security\{LoginChallenge, LoginRateLimiter, LoginRateScope, SessionLifecycle, SessionRegistry};
 use lbuchs\WebAuthn\WebAuthn;
 use lbuchs\WebAuthn\WebAuthnException;
 use OTPHP\TOTP;
@@ -110,7 +110,7 @@ class Login extends Controller
         $uuid = $credentials['uuid'];
         $this->session['temp'] = $credentials;
         $this->session['szczecin'] = $this->request->hasPost('autologin');
-        if (Member::checkCookie('podgorica', $this->request->cookieString('podgorica'), $uuid) !== null) {
+        if (Member::checkCookie(SessionRegistry::TRUST, $this->request->cookieString(SessionRegistry::TRUST), $uuid) !== null) {
             $this->finishLogin(false);
             $page['data']['error'] = 'err_invalid_member';
             return $page;
@@ -300,22 +300,32 @@ class Login extends Controller
         $trust = $verifiedSecondFactor && $this->request->hasPost('trust');
         $lifetimes = [];
         if ($remember) {
-            $lifetimes['szczecin'] = 31_536_000;
+            $lifetimes[SessionRegistry::REMEMBER] = 31_536_000;
         }
         if ($trust) {
-            $lifetimes['podgorica'] = 34_560_000;
+            $lifetimes[SessionRegistry::TRUST] = 34_560_000;
         }
 
         $uuid = $this->session['temp']['uuid'];
         $credential = $this->session['temp']['credential'];
-        $member = Member::login($uuid, $credential, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'), $lifetimes);
+        $member = Member::login(
+            $uuid,
+            $credential,
+            $this->session['ip'],
+            $this->request->serverString('HTTP_USER_AGENT'),
+            $lifetimes,
+            trustedToken: $verifiedSecondFactor ? null : $this->request->cookieString(SessionRegistry::TRUST),
+        );
         if ($member === null) {
             $this->clearSecondFactor();
             return;
         }
 
         $identity = self::getMemberData($uuid, $member['email'], $member['username'], $member['skin']);
-        $this->session = SessionLifecycle::authenticate($this->session, $identity + ['credential' => $credential]);
+        $this->session = SessionLifecycle::authenticate(
+            $this->session,
+            $identity + ['credential' => $credential, 'device_session' => $member['device_session']],
+        );
         foreach ($member['cookies'] as $name => $value) {
             setcookie($name, $value, self::getCookieOptions($lifetimes[$name]));
         }

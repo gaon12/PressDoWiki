@@ -41,19 +41,24 @@ class ACL extends \PressDo\App\Core\Model
         $memberuuid = self::uuid2bin($uuid);
 
         try {
-            $c = $db->prepare("SELECT `perm`, `registered` FROM `member` WHERE `uuid`=?");
-            $c->execute([$memberuuid]);
+            $c = $db->prepare('SELECT perm, registered FROM member WHERE uuid = ?');
+            SqlDialect::bindBinary($db, $c, 1, $memberuuid);
+            $c->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 권한 목록 조회 중 오류 발생');
         }
         $fetch = $c->fetch(PDO::FETCH_ASSOC);
-        $perms = array_merge($perms, explode(',',$fetch['perm']));
+        if (is_string($fetch['perm'] ?? null) && $fetch['perm'] !== '') {
+            $perms = array_merge($perms, explode(',', $fetch['perm']));
+        }
         array_push($perms, 'member');
 
         if ($document !== null) {
             try {
-                $c = $db->prepare("SELECT count(*) as cnt FROM `history` WHERE `contributor_m`=? AND `document`=?");
-                $c->execute([$memberuuid, $document]);
+                $c = $db->prepare('SELECT count(*) AS cnt FROM history WHERE contributor_m = ? AND document = ?');
+                SqlDialect::bindBinary($db, $c, 1, $memberuuid);
+                SqlDialect::bindBinary($db, $c, 2, $document);
+                $c->execute();
             } catch (PDOException $err) {
                 throw new ErrorException($err->getMessage().': 문서 기여 횟수 조회 중 오류 발생');
             }
@@ -66,8 +71,9 @@ class ACL extends \PressDo\App\Core\Model
 
         if (!in_array('contributor', $perms)) {
             try {
-                $c = $db->prepare("SELECT count(*) as cnt FROM `history` WHERE `contributor_m`=?");
-                $c->execute([$memberuuid]);
+                $c = $db->prepare('SELECT count(*) AS cnt FROM history WHERE contributor_m = ?');
+                SqlDialect::bindBinary($db, $c, 1, $memberuuid);
+                $c->execute();
             } catch (PDOException $err) {
                 throw new ErrorException($err->getMessage().': 위키 기여 횟수 조회 중 오류 발생');
             }
@@ -89,14 +95,20 @@ class ACL extends \PressDo\App\Core\Model
     {
         $db = self::db();
 
-        if (SqlDialect::isSqlite() && empty($uuid)) {
-            $sql = "SELECT target_aclgroup, id, groupid, comment, `until`, `datetime`, target_ip, mask FROM BlockHistory JOIN aclgroups ON `name` = target_aclgroup WHERE target_aclgroup IS NOT NULL AND target_ip IS NOT NULL AND ".SqlDialect::activeUntil('`until`')." GROUP BY id HAVING COUNT(*) = 1";
-            $a = $db->query($sql);
+        // PostgreSQL and SQLite make BlockHistory.id unique. MariaDB may have two rows for a removed group entry.
+        $activeRows = SqlDialect::isMysql() ? ' GROUP BY id HAVING COUNT(*) = 1' : '';
+        $base = ' FROM `BlockHistory` JOIN aclgroups ON name = target_aclgroup WHERE target_aclgroup IS NOT NULL AND '
+            . SqlDialect::activeUntil('`until`');
+        if (!SqlDialect::isMysql() && empty($uuid)) {
+            $sql = 'SELECT target_aclgroup, id, groupid, comment, `until`, datetime, target_ip, mask'
+                . $base . ' AND target_ip IS NOT NULL';
+            $a = $db->query(SqlDialect::normalizeIdentifiers($sql));
             $packedIp = inet_pton((string) $ip);
             $groups = [];
 
             foreach ($a->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                if ($packedIp === false || !self::ipMatchesCidr($packedIp, $row['target_ip'], (int) $row['mask'])) {
+                $network = self::readBinary($row['target_ip']);
+                if ($packedIp === false || $network === null || !self::ipMatchesCidr($packedIp, $network, (int) $row['mask'])) {
                     continue;
                 }
 
@@ -108,7 +120,7 @@ class ACL extends \PressDo\App\Core\Model
             return $groups;
         }
 
-        $sql = "SELECT target_aclgroup, id, groupid, comment, `until`, `datetime` FROM BlockHistory JOIN aclgroups ON `name` = target_aclgroup WHERE target_aclgroup IS NOT NULL AND ".SqlDialect::activeUntil('`until`')." AND ";
+        $sql = 'SELECT target_aclgroup, id, groupid, comment, `until`, datetime' . $base . ' AND ';
         if (!empty($uuid)) {
             $sql .= "target_member=?";
             $uparam = self::uuid2bin($uuid);
@@ -116,13 +128,11 @@ class ACL extends \PressDo\App\Core\Model
             $sql .= " (? & mask_to_bin(mask)) = (target_ip & mask_to_bin(mask))";
             $uparam = inet_pton($ip);
         }
-        // id가 2개면 add와 remove가 하나씩 있음
-        $sql .= " GROUP BY id HAVING COUNT(*) = 1";
-
-        $a = $db->prepare($sql);
+        $a = $db->prepare(SqlDialect::normalizeIdentifiers($sql . $activeRows));
 
         try {
-            $a->execute([$uparam]);
+            SqlDialect::bindBinary($db, $a, 1, $uparam);
+            $a->execute();
         } catch (PDOException $err) {
             //if ($err->getCode() == '22003')
             //    throw new ErrorException($err->getMessage().': 사용자의 ACL Group 조회 중 오류 발생. IP:'.$ip);
@@ -134,7 +144,7 @@ class ACL extends \PressDo\App\Core\Model
 
     private static function ipMatchesCidr(string $ip, string $targetIp, int $mask): bool
     {
-        if (strlen($ip) !== strlen($targetIp)) {
+        if (strlen($ip) !== strlen($targetIp) || $mask < 0 || $mask > strlen($ip) * 8) {
             return false;
         }
 
@@ -165,11 +175,14 @@ class ACL extends \PressDo\App\Core\Model
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         try {
-            $d = $db->prepare("SELECT `id`,`condition`,`access`,`action`,`until` as `expired` FROM `acl_document` 
-            WHERE `uuid`=? AND ".($access!==null? "`access`=? AND": "")." ".SqlDialect::activeUntil('`until`')." ORDER BY `id` ASC");
-            $d->execute(
-                ($access===null? [$uuid]:[$uuid, $access])
-            );
+            $sql = 'SELECT id, `condition`, access, action, `until` AS expired FROM acl_document WHERE uuid = ? AND '
+                . ($access !== null ? 'access = ? AND ' : '') . SqlDialect::activeUntil('`until`') . ' ORDER BY id';
+            $d = $db->prepare(SqlDialect::normalizeIdentifiers($sql));
+            SqlDialect::bindBinary($db, $d, 1, $uuid);
+            if ($access !== null) {
+                $d->bindValue(2, $access);
+            }
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 문서 권한 목록 조회 중 오류 발생');
         }
@@ -199,7 +212,9 @@ class ACL extends \PressDo\App\Core\Model
     {
         $db = self::db();
         try {
-            $d = $db->prepare('SELECT `id`,`condition`,`access`,`action`,`until` as `expired` FROM `acl_namespace` WHERE `namespace`=? AND '.($access!==null? "`access`=? AND": "").' '.SqlDialect::activeUntil('`until`').' ORDER BY `id` ASC');
+            $sql = 'SELECT id, `condition`, access, action, `until` AS expired FROM acl_namespace WHERE namespace = ? AND '
+                . ($access !== null ? 'access = ? AND ' : '') . SqlDialect::activeUntil('`until`') . ' ORDER BY id';
+            $d = $db->prepare(SqlDialect::normalizeIdentifiers($sql));
             $d->execute(
                 ($access === null ? [$rawns] : [$rawns, $access])
             );

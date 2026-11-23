@@ -99,6 +99,9 @@ has no enforceable seams between them.
   MariaDB 10.11 and PostgreSQL 16. The same flow runs on SQLite with
   `composer test`. It checks authentication and session credentials, permission
   persistence and audit, and edit-request transitions with revision creation.
+  The server database job also drives the front controller with real login,
+  permission grant, and edit-request approval requests. It checks that denied
+  approvals leave the request open and authorized approvals append a revision.
   MariaDB requires a character delta when inserting an edit request. The
   creation path now records the initial delta against the source revision.
   The stock MariaDB CI image uses InnoDB for the search table, outside the

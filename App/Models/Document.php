@@ -169,23 +169,28 @@ class Document extends \PressDo\App\Core\Model
         $sql = "SELECT h.uuid,h.content,h.comment,h.datetime,h.action,h.rev,h.count,h.reverted_version,h.contributor_m,h.contributor_i, h.edit_request_uri,h.acl_changed,h.moved_from,h.moved_to,h.revstatus, d.status
         FROM `history` as h INNER JOIN `document` as d ON d.uuid = h.document WHERE h.`document`=?";
 
+        $revisionId = null;
         if ($rev === null) {
             $sql .= " ORDER BY h.`datetime` DESC LIMIT 1";
-            $param = [$uuid];
         } else {
             if (is_numeric($rev)) {
                 $sql .= " AND h.rev=?";
             } else {
-                $rev = self::uuid2bin($rev);
+                $revisionId = self::uuid2bin($rev);
                 $sql .= " AND h.uuid=?";
             }
-            $param = [$uuid, $rev];
         }
         
-        $d = $db->prepare($sql);
+        $d = $db->prepare(SqlDialect::normalizeIdentifiers($sql));
 
         try {
-            $d->execute($param);
+            SqlDialect::bindBinary($db, $d, 1, $uuid);
+            if ($revisionId !== null) {
+                SqlDialect::bindBinary($db, $d, 2, $revisionId);
+            } elseif ($rev !== null) {
+                $d->bindValue(2, $rev);
+            }
+            $d->execute();
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 문서 데이터 조회 중 오류 발생');
         }
@@ -195,9 +200,11 @@ class Document extends \PressDo\App\Core\Model
             $res = null;
         else {
             if ($res['content'] == null && (int) $res['rev'] !== 1 && $res['status'] !== 'delete') {
-                $q = $db->prepare("SELECT content FROM history WHERE content IS NOT NULL AND document=? AND rev < ? ORDER BY `datetime` DESC LIMIT 1");
+                $q = $db->prepare('SELECT content FROM history WHERE content IS NOT NULL AND document = ? AND rev < ? ORDER BY datetime DESC LIMIT 1');
                 try {
-                    $q->execute([$uuid, $res['rev']]);
+                    SqlDialect::bindBinary($db, $q, 1, $uuid);
+                    $q->bindValue(2, $res['rev']);
+                    $q->execute();
                 } catch (PDOException $err) {
                     throw new ErrorException($err->getMessage().': 문서 본문 조회 중 오류 발생');
                 }
@@ -206,7 +213,9 @@ class Document extends \PressDo\App\Core\Model
                 if ($previous !== false)
                     $res['content'] = $previous['content'];
             }
-            $res['uuid'] = self::bin2uuid($res['uuid']);
+            $res['uuid'] = self::bin2uuid(self::readBinary($res['uuid']));
+            $res['contributor_m'] = self::readBinary($res['contributor_m']);
+            $res['contributor_i'] = self::readBinary($res['contributor_i']);
         }
 
         # return null if not found

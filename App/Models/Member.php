@@ -348,12 +348,13 @@ class Member extends \PressDo\App\Core\Model
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         $d = $db->prepare("SELECT ip FROM ip WHERE uuid=?");
-        $d->execute([$uuid]);
+        SqlDialect::bindBinary($db, $d, 1, $uuid);
+        $d->execute();
         $data = $d->fetch(PDO::FETCH_ASSOC);
         if($data === false)
             return false;
         else
-            return inet_ntop($data['ip']);
+            return inet_ntop(self::readBinary($data['ip']));
     }
 
     /**
@@ -366,7 +367,8 @@ class Member extends \PressDo\App\Core\Model
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         $d = $db->prepare("SELECT username FROM member WHERE uuid=?");
-        $d->execute([$uuid]);
+        SqlDialect::bindBinary($db, $d, 1, $uuid);
+        $d->execute();
         $data = $d->fetch(PDO::FETCH_ASSOC);
         if($data === false)
             return false;

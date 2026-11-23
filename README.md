@@ -145,6 +145,8 @@ max, the current test suite, and known dependency advisories.
 `composer test`는 SQLite 메모리 DB로 회원가입, 로그인, 비밀번호 재설정,
 권한 부여와 감사 기록, 편집 요청의 리비전 생성을 확인합니다. GitHub Actions는
 같은 테스트를 MariaDB 10.11과 PostgreSQL 16에서도 실행합니다.
+서버 DB에서는 실제 로그인, 권한 부여, 편집 요청 승인 POST를 실행해
+허용·거부 결과와 저장된 변경을 확인합니다.
 
 로컬에서 서버 DB를 검증하려면 테스트 전용 DB에 해당 설치 스키마를 불러온
 뒤 `PRESSDO_TEST_DB_DRIVER`를 `mysql` 또는 `pgsql`로 설정하고

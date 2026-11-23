@@ -3,12 +3,15 @@
 declare(strict_types=1);
 
 use PressDo\App\Core\Model;
+use PressDo\App\Core\Request;
 use PressDo\App\Helpers\Config;
 use PressDo\App\Helpers\Database;
 use PressDo\App\Helpers\DefaultConfig;
 use PressDo\App\Helpers\SqlDialect;
+use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Http\Security\EmailVerificationPurpose as Purpose;
 use PressDo\App\Http\Security\PermissionGrantPolicy;
+use PressDo\App\Http\Security\SessionLifecycle;
 use PressDo\App\Models\EditRequest;
 use PressDo\App\Models\Member;
 
@@ -36,7 +39,48 @@ $config['database.port'] = getenv('PRESSDO_TEST_DB_PORT') ?: ($driver === 'pgsql
 $config['database.name'] = $driver === 'sqlite' ? ':memory:' : (getenv('PRESSDO_TEST_DB_NAME') ?: 'pressdo_test');
 $config['database.user'] = getenv('PRESSDO_TEST_DB_USER') ?: 'pressdo_test';
 $config['database.password'] = getenv('PRESSDO_TEST_DB_PASSWORD') ?: '';
+$config['wiki.mark'] = 'NamuMark';
 (new ReflectionProperty(DefaultConfig::class, 'DefConfig'))->setValue(null, $config);
+
+if (($argv[1] ?? null) === '--request') {
+    $fixture = json_decode(base64_decode($argv[2], true), true, flags: JSON_THROW_ON_ERROR);
+    $_SERVER['REMOTE_ADDR'] = '192.0.2.20';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+    $_SERVER['REQUEST_URI'] = $fixture['uri'];
+    parse_str(parse_url($fixture['uri'], PHP_URL_QUERY) ?? '', $_GET);
+    $_POST = $fixture['post'];
+    $_COOKIE = $fixture['cookies'];
+
+    SessionLifecycle::start(Request::fromGlobals(), '');
+    $_SESSION = $fixture['session'];
+    $_POST['_csrf'] = (new CsrfTokenManager())->issueBrowserToken($_SESSION);
+    register_shutdown_function(static function (): void {
+        echo PHP_EOL . 'STATUS=' . (http_response_code() ?: 200);
+    });
+    require $root . '/public/index.php';
+    exit;
+}
+
+function expectDatabaseResponse(string $uri, int $status, array $post = [], array $session = [], array $cookies = []): void
+{
+    $fixture = base64_encode(json_encode(compact('uri', 'post', 'session', 'cookies'), JSON_THROW_ON_ERROR));
+    $process = proc_open(
+        [PHP_BINARY, __FILE__, '--request', $fixture],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+    );
+    expectDatabaseFlow(is_resource($process), 'Unable to start the request fixture.');
+    $output = stream_get_contents($pipes[1]);
+    $errors = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+
+    expectDatabaseFlow(
+        $exit === 0 && $errors === '' && str_ends_with($output, 'STATUS=' . $status),
+        "$uri should return $status. Response: " . substr($output, -200) . ' Errors: ' . $errors,
+    );
+}
 
 $db = Database::getInstance();
 if ($driver === 'sqlite') {
@@ -88,6 +132,7 @@ expectDatabaseFlow($audit->fetchAll(PDO::FETCH_COLUMN) === ['+mark_troll_revisio
 $document = $db->prepare('SELECT ' . SqlDialect::binaryHex('uuid') . ' FROM document WHERE title = ?');
 $document->execute([$target['username']]);
 $documentId = Model::bin2uuid(hex2bin($document->fetchColumn()));
+$document->closeCursor();
 $slug = 'edit_' . $suffix;
 EditRequest::create($slug, $documentId, '편집 요청 본문', 'request', $target['uuid'], null, 1, 8);
 expectDatabaseFlow(EditRequest::getBulk($documentId) === [['urlstr' => $slug]], 'The edit request should be listed as open.');
@@ -104,5 +149,48 @@ $revision = $db->prepare('SELECT content, rev FROM history WHERE edit_request_ur
 $revision->execute([$slug]);
 $saved = $revision->fetchAll();
 expectDatabaseFlow(count($saved) === 1 && $saved[0]['content'] === '수정한 본문' && (int) $saved[0]['rev'] === 2, 'Acceptance must persist one linked revision.');
+
+if ($driver !== 'sqlite') {
+    $trust = Member::saveCookies($actor['uuid'], 'podgorica', 600);
+    expectDatabaseResponse('/member/login', 302, [
+        'username' => $actor['username'],
+        'password' => 'test-reset-password',
+    ], cookies: ['podgorica' => $trust]);
+
+    $identity = [
+        'uuid' => $actor['uuid'],
+        'credential' => Member::sessionCredential($actor['uuid']),
+        'member' => ['username' => $actor['username']],
+    ];
+    $perm = $db->prepare("UPDATE member SET perm = 'grant,mark_troll_revision,delete_thread' WHERE uuid = ?");
+    SqlDialect::bindBinary($db, $perm, 1, Model::uuid2bin($actor['uuid']));
+    $perm->execute();
+    $grantUrl = '/admin/grant?username=' . rawurlencode($target['username']);
+    expectDatabaseResponse($grantUrl, 403, ['grant_permissions' => '1', 'permissions' => ['admin']], $identity);
+    expectDatabaseResponse($grantUrl, 303, [
+        'grant_permissions' => '1',
+        'permissions' => ['mark_troll_revision', 'delete_thread'],
+    ], $identity);
+    expectDatabaseFlow(in_array('delete_thread', Member::specialPerms($target['uuid']), true), 'Authorized grant POST must persist the selected permission.');
+
+    $acl = $db->prepare(SqlDialect::normalizeIdentifiers("INSERT INTO acl_document (uuid, access, `condition`, action, `until`) VALUES (?, ?, ?, 'allow', 0)"));
+    SqlDialect::bindBinary($db, $acl, 1, Model::uuid2bin($documentId));
+    foreach (['read' => 'perm:any', 'edit' => 'perm:admin'] as $access => $condition) {
+        $acl->bindValue(2, $access);
+        $acl->bindValue(3, $condition);
+        $acl->execute();
+    }
+    $routeSlug = 'route_' . $suffix;
+    EditRequest::create($routeSlug, $documentId, '변경된 제안', 'route', $target['uuid'], null, 2, 3);
+    $acceptUrl = '/edit_request/' . $routeSlug . '/accept';
+    expectDatabaseResponse($acceptUrl, 403, session: $identity);
+    expectDatabaseFlow(EditRequest::get($routeSlug)['status'] === 'open', 'Denied approval must leave the request open.');
+
+    $rule = $db->prepare(SqlDialect::normalizeIdentifiers("UPDATE acl_document SET `condition` = 'perm:member' WHERE uuid = ? AND access = 'edit'"));
+    SqlDialect::bindBinary($db, $rule, 1, Model::uuid2bin($documentId));
+    $rule->execute();
+    expectDatabaseResponse($acceptUrl, 303, session: $identity);
+    expectDatabaseFlow(EditRequest::get($routeSlug)['status'] === 'accepted' && Model::getVersion($documentId) === 3, 'Authorized approval must persist its revision.');
+}
 
 echo "Database security flow test passed ($driver)." . PHP_EOL;

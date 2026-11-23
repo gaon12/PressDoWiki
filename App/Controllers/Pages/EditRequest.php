@@ -212,7 +212,7 @@ class EditRequest extends Controller
                 ACL::getAccountPerms($Cuuid, $member, $mperms[$Cuuid]);
             }
         }
-        $groups = array_map(fn($r) => $r[0]['groupid'], ACL::getUserAclgroups($ip, $uuid));
+        $groups = array_map(fn($r) => $r[0]['groupid'], ACL::getUserAclgroups($ip, $member !== null ? $Cuuid : null));
         $style = implode(' ', array_map(fn($r) => Config::get('aclgroup.'.$r.'.style', ' '), $groups));
         return [
             'member' => $member,

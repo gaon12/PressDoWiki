@@ -77,10 +77,16 @@ class Model
      */
     public static function getIpUuid($ip, bool $noinsert = false): string|null
     {
+        $packed = inet_pton($ip);
+        if ($packed === false) {
+            return null;
+        }
+
         $db = self::db();
 
         $d = $db->prepare('SELECT uuid FROM ip WHERE ip=?');
-        $d->execute([inet_pton($ip)]);
+        SqlDialect::bindBinary($db, $d, 1, $packed);
+        $d->execute();
         $data = $d->fetch(PDO::FETCH_ASSOC);
         if ($data === false) {
             if ($noinsert) {
@@ -88,10 +94,12 @@ class Model
             }
             $uuid = self::generateUuid();
             $d = $db->prepare('INSERT INTO ip(uuid,ip) VALUES(?,?)');
-            $d->execute([self::uuid2bin($uuid),inet_pton($ip)]);
+            SqlDialect::bindBinary($db, $d, 1, self::uuid2bin($uuid));
+            SqlDialect::bindBinary($db, $d, 2, $packed);
+            $d->execute();
             return $uuid;
         } else {
-            return self::bin2uuid($data['uuid']);
+            return self::bin2uuid(self::readBinary($data['uuid']));
         }
     }
 

@@ -28,7 +28,7 @@ class Member extends \PressDo\App\Core\Model
         $user = $d->fetch(PDO::FETCH_ASSOC);
         
         // not found
-        if ($user === false || !password_verify($pw, $user['password']))
+        if ($user === false || !is_string($user['password']) || !password_verify($pw, $user['password']))
             return false;
         
         $user['uuid'] = self::bin2uuid($user['uuid']);
@@ -181,29 +181,39 @@ class Member extends \PressDo\App\Core\Model
         return $d->fetch(PDO::FETCH_ASSOC);
     }
 
-    public static function setTotp(string $uuid, string $secret)
+    public static function setTotp(string $uuid, string $secret): bool
     {
-        $db = self::db();
-        $uuid = self::uuid2bin($uuid);
-        
-        try {
-            $e = $db->prepare("UPDATE `member` SET `totp_secret`=? WHERE `uuid`=?");
-            $e->execute([$secret,$uuid]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': TOTP 등록 중 오류 발생');
-        }
+        return self::changeTotp($uuid, '', $secret);
     }
 
-    public static function removeTotp(string $uuid)
+    public static function removeTotp(string $uuid, string $secret): bool
+    {
+        return self::changeTotp($uuid, $secret, null);
+    }
+
+    private static function changeTotp(string $uuid, string $previous, ?string $secret): bool
     {
         $db = self::db();
-        $uuid = self::uuid2bin($uuid);
-        
+        $member = self::uuid2bin($uuid);
+        $db->beginTransaction();
+
         try {
-            $e = $db->prepare("UPDATE `member` SET `totp_secret`=NULL WHERE `uuid`=?");
-            $e->execute([$uuid]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': TOTP 삭제 중 오류 발생');
+            $update = $db->prepare("UPDATE member SET totp_secret = ? WHERE uuid = ? AND COALESCE(totp_secret, '') = ?");
+            $update->execute([$secret, $member, $previous]);
+            if ($update->rowCount() !== 1) {
+                $db->rollBack();
+                return false;
+            }
+
+            $revoke = $db->prepare(SqlDialect::normalizeIdentifiers('DELETE FROM cookies WHERE `user` = ?'));
+            $revoke->execute([$member]);
+
+            return $db->commit();
+        } catch (\Throwable $exception) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $exception;
         }
     }
 
@@ -244,12 +254,12 @@ class Member extends \PressDo\App\Core\Model
         }
     }
 
-    public static function logWebauthnUsage(string $name)
+    public static function logWebauthnUsage(string $uuid, string $name): void
     {
         $db = self::db();
         try {
-            $d = $db->prepare("UPDATE `webauthn` SET lastuse=? WHERE `name`=?");
-            $d->execute([time(), $name]);
+            $d = $db->prepare("UPDATE `webauthn` SET lastuse=? WHERE uuid=? AND `name`=?");
+            $d->execute([time(), self::uuid2bin($uuid), $name]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': Webauthn 사용 기록 중 오류 발생');
         }

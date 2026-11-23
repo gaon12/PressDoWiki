@@ -59,6 +59,11 @@ function submitWebAuthnChallenge(challenge, passkeyName) {
 
     if (passkeyName) {
         form.appendChild(passkeyName.cloneNode(true));
+    } else {
+        const trust = document.querySelector('#loginform input[name="trust"]:checked');
+        if (trust) {
+            form.appendChild(trust.cloneNode(true));
+        }
     }
 
     form.method = 'post';

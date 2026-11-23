@@ -71,4 +71,10 @@ expectEmailVerification(is_string($expired), 'A second reset should receive a ne
 $database->prepare('UPDATE email_keys SET time = ?')->execute([time() - 1_801]);
 expectEmailVerification(!Member::completePasswordReset($expired, 'expired-password!'), 'An expired reset must not change the password.');
 
+$trusted = Member::saveCookies($member['uuid'], 'podgorica', 600);
+expectEmailVerification(Member::setTotp($member['uuid'], 'JBSWY3DPEHPK3PXP'), 'TOTP enrollment should update the stored factor.');
+expectEmailVerification(Member::checkCookie('podgorica', $trusted) === null, 'TOTP enrollment must revoke prior device trust.');
+expectEmailVerification(!Member::removeTotp($member['uuid'], 'WRONGSECRET'), 'A stale secret must not remove the current factor.');
+expectEmailVerification(Member::removeTotp($member['uuid'], 'JBSWY3DPEHPK3PXP'), 'TOTP removal should match the stored secret.');
+
 echo 'Email verification tests passed.' . PHP_EOL;

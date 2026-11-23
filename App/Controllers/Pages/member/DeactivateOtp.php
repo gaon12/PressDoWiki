@@ -2,7 +2,7 @@
 namespace PressDo\App\Controllers\Pages\Member;
 
 use PressDo\App\Models\Member;
-use PressDo\App\Core\Controller;
+use PressDo\App\Core\{Controller,Response};
 use PressDo\App\Helpers\{Languages,Config};
 use OTPHP\TOTP;
 
@@ -27,22 +27,25 @@ class DeactivateOtp extends Controller
             return $page;
         }
 
-        if (!empty($_POST['pin'])) {
-            $otp = TOTP::createFromSecret($this->session['otp_secret']);
-
-            if ($otp->verify($_POST['pin'])) {
-                Member::removeTotp($this->session['uuid']);
-                header('Location: /member/mypage');
-            } else
-                $errmsg = 'err_invalid_pin';
+        $errmsg = null;
+        if ($this->request->isMethod('POST')) {
+            $pin = $this->request->postString('pin');
+            $secret = $user['totp_secret'];
+            if (preg_match('/\A[0-9]{6}\z/', $pin) === 1
+                && TOTP::createFromSecret($secret)->verify($pin)
+                && Member::removeTotp($this->session['uuid'], $secret)) {
+                unset($this->session['otp_secret']);
+                $_SESSION = $this->session;
+                Response::redirect('/member/mypage', 303);
+            }
+            $errmsg = 'err_invalid_pin';
         }
 
         $page = [
             'view_name' => 'deactivate_otp',
             'title' => Languages::get('page')['deactivate_otp'],
             'data' => [
-                'error' => $errmsg,
-                'redirect' => base64_decode($_GET['redirect'])
+                'error' => $errmsg
             ],
             'menus' => [],
             'customData' => []

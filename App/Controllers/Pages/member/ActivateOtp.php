@@ -2,7 +2,7 @@
 namespace PressDo\App\Controllers\Pages\Member;
 
 use PressDo\App\Models\Member;
-use PressDo\App\Core\Controller;
+use PressDo\App\Core\{Controller,Response};
 use PressDo\App\Helpers\{Languages,Config};
 use OTPHP\TOTP;
 use ParagonIE\ConstantTime\Base32;
@@ -30,21 +30,21 @@ class ActivateOtp extends Controller
             return $page;
         }
 
-        if (!empty($_POST['pin'])) {
-            $otp = TOTP::createFromSecret($this->session['otp_secret']);
-
-            if ($otp->verify($_POST['pin'])) {
-                Member::setTotp($this->session['uuid'], $this->session['otp_secret']);
-                unset($this->session['member']['secret']);
-                header('Location: /member/mypage');
-            } else
-                $errmsg = 'err_invalid_pin';
-            
-            if (empty($this->session['otp_secret']))
-                $this->session['otp_secret'] = trim(Base32::encodeUpper(random_bytes(10)), '=');
-        } else {
-            $this->session['otp_secret'] = trim(Base32::encodeUpper(random_bytes(10)), '=');
+        $secret = $this->session['otp_secret'] ?? null;
+        $errmsg = null;
+        if ($this->request->isMethod('POST')) {
+            $pin = $this->request->postString('pin');
+            if (is_string($secret) && preg_match('/\A[0-9]{6}\z/', $pin) === 1
+                && TOTP::createFromSecret($secret)->verify($pin)
+                && Member::setTotp($this->session['uuid'], $secret)) {
+                unset($this->session['otp_secret']);
+                $_SESSION = $this->session;
+                Response::redirect('/member/mypage', 303);
+            }
+            $errmsg = 'err_invalid_pin';
         }
+
+        $this->session['otp_secret'] ??= trim(Base32::encodeUpper(random_bytes(10)), '=');
 
         $writer = new PngWriter();
         $qrCode = new QrCode(
@@ -62,8 +62,7 @@ class ActivateOtp extends Controller
             'title' => Languages::get('page')['activate_otp'],
             'data' => [
                 'error' => $errmsg,
-                'qrcode' => $qr_result->getDataUri(),
-                'redirect' => base64_decode($_GET['redirect'])
+                'qrcode' => $qr_result->getDataUri()
             ],
             'menus' => [],
             'customData' => []

@@ -38,7 +38,7 @@
             @endphp
         @else
             @php
-                $totpmsg = sprintf($lang['msg']['force_2fa_email'], $wiki['page']['data']['otp_email']);
+                $totpmsg = sprintf($lang['msg']['force_2fa_email'], e($wiki['page']['data']['otp_email']));
             @endphp
         @endif
         {!! $totpmsg !!}

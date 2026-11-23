@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use PressDo\App\Core\Model;
 use PressDo\App\Core\Request;
 use PressDo\App\Helpers\Database;
 use PressDo\App\Helpers\DefaultConfig;
 use PressDo\App\Http\Security\CsrfTokenManager;
+use PressDo\App\Http\Security\LoginChallenge;
 use PressDo\App\Http\Security\SessionLifecycle;
 
 $root = dirname(__DIR__, 2);
@@ -23,7 +25,8 @@ if (($argv[1] ?? null) === '--fixture') {
     $config['database.name'] = ':memory:';
     $config['wiki.mark'] = 'NamuMark';
     (new ReflectionProperty(DefaultConfig::class, 'DefConfig'))->setValue(null, $config);
-    Database::getInstance()->exec(file_get_contents($root . '/templates/database_scheme.sqlite.sql'));
+    $database = Database::getInstance();
+    $database->exec(file_get_contents($root . '/templates/database_scheme.sqlite.sql'));
 
     $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
     $_SERVER['REQUEST_URI'] = $requestUri;
@@ -33,6 +36,19 @@ if (($argv[1] ?? null) === '--fixture') {
     $token = (new CsrfTokenManager())->issueBrowserToken($_SESSION);
     if ($tokenMode === 'valid') {
         $_POST['_csrf'] = $token;
+    }
+
+    if (str_starts_with($tokenMode, 'factor-')) {
+        $uuid = '00000000-0000-4000-8000-000000000001';
+        $database->prepare('INSERT INTO member (uuid, username, email) VALUES (?, ?, ?)')
+            ->execute([Model::uuid2bin($uuid), 'fixture', 'fixture@example.test']);
+        $_SESSION['temp'] = ['uuid' => $uuid];
+        $_SESSION['do2fa'] = 'email';
+        $_SESSION['pin'] = '123456';
+        $_SESSION['factor_view'] = ['force_2fa' => true, 'use_totp' => false, 'use_webauthn' => false, 'otp_email' => 'fixture@example.test'];
+        LoginChallenge::begin($_SESSION, $tokenMode === 'factor-expired' ? time() - 601 : time());
+        $_POST['_csrf'] = $token;
+        $_POST['pin'] = '123456';
     }
 
     register_shutdown_function(static function (): void {
@@ -92,6 +108,16 @@ if ($status !== 200 || !str_contains($preview, '<p>Preview fixture</p>')) {
 [$login, $status] = browserBoundaryRequest('/member/login', 'GET');
 if ($status !== 200 || !preg_match('/name="_csrf" value="[a-f0-9]{64}"/', $login)) {
     throw new RuntimeException('The login form must include its session-bound token.');
+}
+
+[, $status] = browserBoundaryRequest('/member/login', 'POST', 'factor-valid');
+if ($status !== 302) {
+    throw new RuntimeException('A current second factor must complete login.');
+}
+
+[$expired, $status] = browserBoundaryRequest('/member/login', 'POST', 'factor-expired');
+if ($status !== 200 || !str_contains($expired, '시도 횟수를 초과했습니다')) {
+    throw new RuntimeException('An expired second factor must restart login.');
 }
 
 echo 'Browser mutation boundary tests passed.' . PHP_EOL;

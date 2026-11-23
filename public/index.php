@@ -3,6 +3,7 @@ namespace PressDo;
 
 use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver,Csp};
 use PressDo\App\Core\{Controller,Request,Response};
+use PressDo\App\Http\Security\SessionLifecycle;
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
@@ -14,9 +15,7 @@ $request = Request::fromGlobals();
 
 date_default_timezone_set(GeoIp::getTimezone($request->serverString('REMOTE_ADDR')) ?? Config::get('wiki.timezone'));
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+SessionLifecycle::start($request, (string) Config::get('wiki.canonical_url'));
 
 $router = new Router();
 $router->handleURI($request->serverString('REQUEST_URI'));

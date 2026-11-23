@@ -3,6 +3,7 @@
 namespace PressDo\App\Core;
 
 use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
+use PressDo\App\Http\Security\SessionLifecycle;
 use PressDo\App\Models\Member;
 use PressDo\App\Services\Mark\MarkHandler;
 use PressDo\App\Services\Mark\MarkupResult;
@@ -44,7 +45,7 @@ class Controller
             $uuid = Member::checkCookie('szczecin', $this->request->cookieString('szczecin'));
             if ($uuid !== null) {
                 $member = Member::login($uuid, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
-                $this->session = array_replace(
+                $this->session = SessionLifecycle::authenticate(
                     $this->session,
                     self::getMemberData($uuid, $member['email'], $member['username'], $member['skin']),
                 );
@@ -66,7 +67,7 @@ class Controller
         }
     }
 
-    public static function getMemberData(string $uuid, string $email, string $username, string $skin): array
+    public static function getMemberData(string $uuid, string $email, string $username, ?string $skin): array
     {
         $menus = [];
         $SP = ['aclgroup', 'grant', 'login_history'];

@@ -17,6 +17,7 @@
 			"php tests/Compliance/LicenseBoundaryTest.php",
 			"php tests/SecurityTest.php",
 			"php tests/Http/MemberCookieTest.php",
+			"php tests/Http/SessionLifecycleTest.php",
 			"php tests/RouteControllerResolverTest.php",
 			"php tests/ProjectPathsTest.php",
 			"php tests/Infrastructure/JsonFileTest.php",

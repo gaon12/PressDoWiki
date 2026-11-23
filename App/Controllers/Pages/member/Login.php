@@ -4,6 +4,7 @@ namespace PressDo\App\Controllers\Pages\Member;
 use PressDo\App\Models\Member;
 use PressDo\App\Core\{Controller,Response};
 use PressDo\App\Helpers\{Languages,Config};
+use PressDo\App\Http\Security\SessionLifecycle;
 use lbuchs\WebAuthn\WebAuthn;
 use lbuchs\WebAuthn\WebAuthnException;
 use OTPHP\TOTP;
@@ -176,21 +177,19 @@ class Login extends Controller
 
     private function finishLogin(): never
     {
-        $this->session['menus'] = $this->session['temp']['menus'];
-        $this->session['member'] = $this->session['temp']['member'];
-        $this->session['uuid'] = $this->session['temp']['uuid'];
-        $this->session['admin'] = $this->session['temp']['admin'];
-        unset($this->session['temp']);
+        $remember = ($this->session['szczecin'] ?? false) === true;
+        $trust = $this->request->hasPost('trust')
+            || ($this->request->postJson('challenge') !== null && ($this->session['do2fa'] ?? null) === 'webauthn');
+        $this->session = SessionLifecycle::authenticate($this->session, $this->session['temp']);
 
-        if ($this->request->hasPost('autologin') || $this->session['szczecin'] === true) {
+        if ($remember) {
             setcookie(
                 'szczecin',
                 Member::saveCookies($this->session['uuid'], 'szczecin', 31536000),
                 self::getCookieOptions(31536000)
             );
-            unset($this->session['szczecin']);
         }
-        if ($this->request->hasPost('trust') || ($this->request->postJson('challenge') !== null && $this->session['do2fa'] == 'webauthn')) {
+        if ($trust) {
             setcookie(
                 'podgorica',
                 Member::saveCookies($this->session['uuid'], 'podgorica', 34560000),

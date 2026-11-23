@@ -21,6 +21,22 @@ final readonly class SchemaMigrator
                 PRIMARY KEY (expires_at, bucket_key)
             )',
         ],
+        2 => [
+            'CREATE TABLE IF NOT EXISTS member_sessions (
+                member_id {member_id_type} NOT NULL,
+                id CHAR(32) NOT NULL,
+                user_agent VARCHAR(255) NOT NULL,
+                created_at BIGINT NOT NULL,
+                last_seen_at BIGINT NOT NULL,
+                expires_at BIGINT NOT NULL,
+                remember_digest CHAR(64) UNIQUE,
+                remember_expires_at BIGINT,
+                trust_digest CHAR(64) UNIQUE,
+                trust_expires_at BIGINT,
+                PRIMARY KEY (member_id, id),
+                FOREIGN KEY (member_id) REFERENCES member(uuid) ON DELETE CASCADE
+            )',
+        ],
     ];
 
     public function __construct(private PDO $database) {}
@@ -40,6 +56,11 @@ final readonly class SchemaMigrator
         // Avoid partially initializing an empty or incorrectly selected database.
         $this->database->query('SELECT 1 FROM member WHERE 1 = 0');
         $engine = $driver === 'mysql' ? ' ENGINE=InnoDB' : '';
+        $memberIdType = match ($driver) {
+            'mysql' => 'BINARY(16)',
+            'pgsql' => 'BYTEA',
+            'sqlite' => 'BLOB',
+        };
         $this->database->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
             version INTEGER PRIMARY KEY,
             applied_at BIGINT NOT NULL
@@ -57,7 +78,8 @@ final readonly class SchemaMigrator
             }
 
             foreach ($statements as $statement) {
-                $this->database->exec($statement . $engine);
+                $sql = str_replace('{member_id_type}', $memberIdType, $statement);
+                $this->database->exec($sql . $engine);
             }
             $record->execute([$version, time()]);
             $applied[] = $version;

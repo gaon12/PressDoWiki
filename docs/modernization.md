@@ -118,6 +118,9 @@ has no enforceable seams between them.
   New schema changes use `php tools/migrate.php`. CI creates an account on
   the installation schema before upgrading, then checks that the account
   survives and re-running the migrator leaves one record per version.
+  Migration 2 adds a registry of member sessions with their creation and
+  activity timestamps and hashed browser credentials. Its runtime queries
+  share the PDO SQL used for all three database engines.
 
 Performance optimization before these seams exist would mostly be guesswork.
 

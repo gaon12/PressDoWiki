@@ -51,6 +51,15 @@ class MarkHandler
             $output[$key] = $value;
         }
 
-        return MarkupResult::fromLoaderResult($output);
+        $result = MarkupResult::fromLoaderResult($output);
+        if (in_array($mark, ['NamuMark', 'Markdown'], true)) {
+            return $result;
+        }
+
+        return new MarkupResult(
+            WikiHtmlSanitizer::sanitize($result->html),
+            $result->links,
+            WikiHtmlSanitizer::sanitize($result->editorComment),
+        );
     }
 }

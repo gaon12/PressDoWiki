@@ -81,11 +81,11 @@
 		]
 	},
 	"require": {
+		"php": "^8.2",
 		"ext-dom": "*",
 		"ext-libxml": "*",
 		"ext-mbstring": "*",
 		"ext-pdo": "*",
-		"php": "^8.2",
 		"aws/aws-sdk-php": "^3.339",
 		"endroid/qr-code": "^6.0",
 		"geoip2/geoip2": "^3.4",
@@ -95,6 +95,7 @@
 		"league/commonmark": "^2.9.1",
 		"meyfa/php-svg": "^0.16.0",
 		"spomky-labs/otphp": "^11.3",
+		"symfony/html-sanitizer": "^7.4",
 		"symfony/mailer": "^7.2"
 	},
 	"require-dev": {

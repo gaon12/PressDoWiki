@@ -31,6 +31,7 @@ parameters:
         - App/Services/Mark/Markdown/Loader.php
         - App/Services/Mark/MarkupLinks.php
         - App/Services/Mark/MarkupResult.php
+        - App/Services/Mark/WikiHtmlSanitizer.php
         - App/Models/Backlink.php
         - App/Models/Files.php
         - App/Models/Search.php

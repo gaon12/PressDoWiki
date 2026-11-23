@@ -27,6 +27,9 @@ PHP 8.2 이상과 Composer 2가 필요합니다. MariaDB/MySQL, SQLite, PostgreS
 방문자 위치 기능에는 MaxMind GeoIP2 City 데이터베이스가 필요합니다.
 PostgreSQL 검색은 `LIKE`를 사용합니다.
 
+MediaWiki와 BBCode의 렌더링 결과는 안전한 HTML 요소와 링크만 허용합니다.
+기존 문서의 임의 HTML 속성, 인라인 스타일, 폼과 iframe은 렌더링에서 걸러집니다.
+
 ## Installation and Local Development
 
 ### Requirements

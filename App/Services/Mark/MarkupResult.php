@@ -11,7 +11,7 @@ use RuntimeException;
  */
 final readonly class MarkupResult
 {
-    private const MAX_HTML_BYTES = 8_388_608;
+    public const MAX_HTML_BYTES = 8_388_608;
 
     private const MAX_EDITOR_COMMENT_BYTES = 65_536;
 

@@ -4,6 +4,7 @@ require __DIR__.'/../vendor/autoload.php';
 
 use PressDo\App\Helpers\Config;
 use PressDo\App\Services\Mark\MarkHandler;
+use PressDo\App\Services\Mark\WikiHtmlSanitizer;
 
 function setMarkConfigValues(array $values): void
 {
@@ -33,6 +34,29 @@ assertMarkValue(false, str_contains($markdown->html, 'href="javascript:'), 'Mark
 setMarkConfigValues(['wiki.mark' => 'MediaWiki']);
 $mediaWiki = MarkHandler::load("== Heading ==\n\nBody", []);
 assertMarkValue(true, str_contains($mediaWiki->html, '<h'), 'MediaWiki loader should render through a namespaced Loader class.');
+
+$rawTable = <<<'MARKUP'
+Intro
+{| class="custom-selector" onmouseover="marker"
+|-
+| Cell
+|}
+MARKUP;
+$table = MarkHandler::load($rawTable, []);
+assertMarkValue(true, str_contains($table->html, '<table>'), 'Legacy wiki tables should retain their table structure.');
+assertMarkValue(false, str_contains($table->html, 'onmouseover='), 'Legacy table attributes cannot add event handlers.');
+assertMarkValue(false, str_contains($table->html, 'custom-selector'), 'Legacy wiki markup cannot attach application classes.');
+
+$filtered = WikiHtmlSanitizer::sanitize(
+    '<p id="application" onclick="marker"><a href="/w/Sample">Sample</a>'
+    . '<a href="javascript:marker">unsafe</a><img src="/image.png" onerror="marker"></p>'
+    . '<form action="/member/logout"><input name="_csrf"></form><iframe src="https://example.test"></iframe>'
+);
+assertMarkValue(true, str_contains($filtered, 'href="/w/Sample"'), 'The HTML filter should retain local document links.');
+assertMarkValue(true, str_contains($filtered, 'src="/image.png"'), 'The HTML filter should retain local images.');
+foreach (['id=', 'onclick=', 'onerror=', 'javascript:', '<form', '<input', '<iframe'] as $blocked) {
+    assertMarkValue(false, str_contains($filtered, $blocked), 'Legacy parser output cannot contain ' . $blocked);
+}
 
 setMarkConfigValues(['wiki.mark' => 'Namumark']);
 $alias = MarkHandler::load("== Alias ==\n\nBody", []);

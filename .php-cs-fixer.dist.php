@@ -53,6 +53,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/App/Services/Mark/Markdown/Loader.php',
         __DIR__.'/App/Services/Mark/MarkupLinks.php',
         __DIR__.'/App/Services/Mark/MarkupResult.php',
+        __DIR__.'/App/Services/Mark/WikiHtmlSanitizer.php',
         __DIR__.'/tests/GeoIpTest.php',
         __DIR__.'/tests/ProjectPathsTest.php',
         __DIR__.'/tests/ViewSkinTest.php',

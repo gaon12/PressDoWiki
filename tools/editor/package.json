@@ -1,0 +1,17 @@
+{
+  "name": "pressdo-wiki-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "monaco-editor": "0.57.0"
+  },
+  "overrides": {
+    "dompurify": "3.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

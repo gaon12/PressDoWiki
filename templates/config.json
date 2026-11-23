@@ -8,7 +8,6 @@
     "wiki.description": "",
     "wiki.default_skin": "pressdo",
     "wiki.mark": "MediaWiki",
-    "wiki.editor_version":"0.20.0",
     "member.tos":"여기에 약관을 입력해주세요.",
     "mail.smtp_host":"",
     "mail.smtp_port":"",

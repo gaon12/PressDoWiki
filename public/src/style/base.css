@@ -313,6 +313,7 @@ form ul.editor.top:before {display:table; content: " ";}
 form li.editor.top {float:left; margin-bottom: -1px;}
 form li button.a.editor.top {color: #55595c; background-color:#fff; border-color: #ddd #ddd transparent;}
 form li button.editor.top {background: 0 0;cursor: pointer;font-size: .9rem;display: block;padding: 0.5em 1em;border: 1px solid transparent;border-radius: 0.25rem 0.25rem 0 0;}
+form[data-wiki-editor] [hidden] {display:none;}
 form li.t.editor.top {float:right;}
 form li+li.editor.top {margin-left:0.2rem;}
 form li.t>div.editor.top {display:inline-block;}

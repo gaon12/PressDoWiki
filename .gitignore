@@ -1,3 +1,5 @@
 vendor/
 .php-cs-fixer.cache
 var/cache/
+tools/editor/node_modules/
+public/src/editor/

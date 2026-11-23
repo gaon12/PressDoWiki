@@ -24,7 +24,6 @@
     <meta name="googlebot" content="noarchive">
     <meta name="robots" content="max-image-preview:large">
     <meta name="theme-color" content="">
-    <meta name="monaco-version" content="{{ $config['wiki.editor_version'] }}">
     <script defer src="/src/script/main.js"></script>
     @if ($viewName === 'mypage' || !empty($pageData['use_webauthn']))
         <script defer src="/src/script/webauthn.js"></script>
@@ -50,8 +49,7 @@
         <script defer src="/src/script/math.js"></script>
     @endif
     @if ($viewName === 'edit' || $viewName === 'edit_edit_request')
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/{{ $config['wiki.editor_version'] }}/min/vs/loader.js"></script>
-        <script src="https://cdn.jsdelivr.net/gh/PressDo/monaco-pressdo@latest/monaco.js"></script>
+        <script type="module" src="/src/script/editor.js"></script>
     @endif
     @foreach (($skinConfig['js'] ?? []) as $skinScript)
         <link rel="preload" as="script" href="/skins/{{ $skinName }}/{{ $skinScript['path'] }}">

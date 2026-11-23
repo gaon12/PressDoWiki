@@ -152,3 +152,19 @@ max, the current test suite, and known dependency advisories.
 `PRESSDO_TEST_DB_HOST`, `PRESSDO_TEST_DB_PORT`, `PRESSDO_TEST_DB_NAME`,
 `PRESSDO_TEST_DB_USER`, `PRESSDO_TEST_DB_PASSWORD`로 지정합니다.
 테스트는 DB에 임의의 계정, 편집 요청과 감사 기록을 생성합니다.
+
+## 편집기 빌드
+
+원문 편집과 미리보기는 PHP 소스 설치에서 바로 사용할 수 있습니다.
+공식 릴리스에는 Monaco 편집기가 포함됩니다. Git 체크아웃에서 Monaco 탭을
+활성화하려면 Node.js 24로 아래 명령을 실행하세요.
+
+```sh
+npm --prefix tools/editor ci --ignore-scripts
+npm --prefix tools/editor run build
+```
+
+생성된 `public/src/editor/`는 CSS, 글꼴, 워커와 라이선스를 포함합니다.
+편집기 파일을 CDN 없이 같은 사이트에서 제공하며, `wiki.editor_version`
+설정은 더 이상 사용하지 않습니다. 데스크톱에서 Monaco 탭을 처음 열 때
+파일을 내려받습니다. 모바일과 빌드가 없는 설치에서는 원문으로 편집합니다.

@@ -4,6 +4,8 @@ namespace PressDo\App\Helpers;
 
 final class Csp
 {
+    private const KATEX_DIST = 'https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/';
+
     private const DIRECTIVES = [
         'default-src' => ["'self'"],
         'base-uri' => ["'self'"],
@@ -27,17 +29,15 @@ final class Csp
             'https://hcaptcha.com',
             'https://*.hcaptcha.com',
         ],
-        'worker-src' => ["'self'", 'blob:'],
+        'worker-src' => ["'self'"],
         'script-src' => [
             "'self'",
-            "'unsafe-eval'",
             'https://www.google.com/recaptcha/',
             'https://www.gstatic.com/recaptcha/',
             'www.googletagmanager.com',
             'www.google-analytics.com',
-            'unpkg.com',
-            'cdn.jsdelivr.net',
-            'cdnjs.cloudflare.com',
+            self::KATEX_DIST . 'katex.min.js',
+            self::KATEX_DIST . 'contrib/auto-render.min.js',
             'challenges.cloudflare.com',
             'https://hcaptcha.com',
             'https://*.hcaptcha.com',
@@ -46,7 +46,7 @@ final class Csp
             "'self'",
             "'unsafe-inline'",
             'fonts.googleapis.com',
-            'cdn.jsdelivr.net',
+            self::KATEX_DIST . 'katex.min.css',
             'https://hcaptcha.com',
             'https://*.hcaptcha.com',
         ],
@@ -60,6 +60,7 @@ final class Csp
         'font-src' => [
             "'self'",
             'fonts.gstatic.com',
+            self::KATEX_DIST . 'fonts/',
             'data:',
         ],
     ];

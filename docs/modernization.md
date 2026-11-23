@@ -64,9 +64,15 @@ has no enforceable seams between them.
 - Upload validation trusts the browser-provided MIME type, accepts SVG, and mixes
   validation, image decoding, storage, and document creation without a
   transaction.
-- The CSP permits inline scripts, `unsafe-eval`, broad third-party hosts, and
-  wildcard child/media sources. It offers much less protection than its presence
-  suggests.
+- The CSP restricts scripts to external sources on its allowlist and workers
+  to the current origin. The Monaco editor and its worker are built from the
+  pinned npm lockfile and served with the release. The bundled NamuMark
+  highlighting and toolbar are maintained in this repository. Preview and raw
+  editing continue to work in a source checkout without the Monaco bundle.
+  The lockfile overrides Monaco's DOMPurify pin with version 3.5.0 to pick up
+  security fixes. Review the override when upgrading Monaco.
+  CAPTCHA and KaTeX still use their configured or pinned external endpoints.
+  The KaTeX allowlist covers the pinned scripts, stylesheet, and font directory.
 - Error handling suppresses notices and warnings in the front controller. That
   hides defects and risks returning partial responses instead of recording a
   controlled failure.

@@ -52,7 +52,6 @@ try {
             'wiki.site_name' => 'PressDo Test',
             'wiki.front_page' => 'Front Page',
             'wiki.canonical_url' => 'https://example.test',
-            'wiki.editor_version' => '0.0.0',
             'wiki.use_captcha' => false,
             'wiki.description' => 'Test wiki',
         ],
@@ -83,11 +82,18 @@ try {
     if (!str_contains($html, '<script src="/src/script/theme.js"></script>') || str_contains($html, '<script>')) {
         failFrameTemplateTest('The shipped frame should load the theme as an external script.');
     }
+    if (str_contains($html, '/src/script/editor.js')) {
+        failFrameTemplateTest('Non-edit pages should not load the editor.');
+    }
 
     $frameData['wiki']['page']['view_name'] = 'edit';
     $editHtml = $renderer->render('frame', $frameData);
     if (!str_contains($editHtml, 'katex@0.18.1') || !str_contains($editHtml, '/src/script/math.js')) {
         failFrameTemplateTest('Edit pages should load the current shared math renderer for live previews.');
+    }
+    if (!str_contains($editHtml, '<script type="module" src="/src/script/editor.js"></script>')
+        || str_contains($editHtml, 'monaco-pressdo') || str_contains($editHtml, 'monaco-version')) {
+        failFrameTemplateTest('Edit pages should use the same-origin editor module.');
     }
     if (str_contains($editHtml, 'katex@0.11.1') || str_contains($editHtml, 'onload="renderMathInElement')) {
         failFrameTemplateTest('The frame should not retain the legacy KaTeX release or inline render handler.');

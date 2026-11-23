@@ -118,3 +118,17 @@ jobs:
           PRESSDO_TEST_DB_DRIVER: pgsql
           PRESSDO_TEST_DB_PORT: ${{ job.services.postgres.ports[5432] }}
         run: php tests/Integration/DatabaseSecurityFlowTest.php
+
+  editor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tools/editor/package-lock.json
+      - run: npm --prefix tools/editor ci --ignore-scripts
+      - run: npm --prefix tools/editor audit
+      - run: node --check public/src/script/editor.js
+      - run: npm --prefix tools/editor run build

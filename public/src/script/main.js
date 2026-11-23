@@ -471,41 +471,37 @@ if(g('nag')){
     })
 }
 
+function submitRemoval(name) {
+    const form = ce('form')
+    form.method = 'post'
+    form.action = window.location.pathname + window.location.search
+
+    for (const [field, value] of [['delnm', name], ['_csrf', q('meta[name="csrf-token"]').content]]) {
+        const input = ce('input')
+        input.type = 'hidden'
+        input.name = field
+        input.value = value
+        form.appendChild(input)
+    }
+
+    document.body.appendChild(form)
+    form.submit()
+}
+
 // ACL그룹삭제
-qa('.rmag').forEach(r => {
-    e(r,'click', (e) => {
-        e.preventDefault()
-        var co = confirm(a.g(r,'msg'))
-        if(co === false){
-            return false
-        }else if(co === true){
-            var f = ce('form')
-            var i = ce('input')
-            i.type = 'hidden'
-            i.name = 'delnm'
-            i.value = a.g(r,'d_target')
-            f.appendChild(i)
-            f.method = 'POST'
-            f.action = window.location.href
-            document.body.appendChild(f)
-            f.submit()
+qa('.rmag').forEach(button => {
+    e(button, 'click', event => {
+        event.preventDefault()
+        if (confirm(a.g(button, 'msg'))) {
+            submitRemoval(a.g(button, 'd_target'))
         }
     })
 })
 
-qa('.passkey-remove').forEach(r => {
-    e(r,'click', (e) => {
-        var name = a.g(r,'targetname');
-        var f = ce('form')
-        var i = ce('input')
-        i.type = 'hidden'
-        i.name = 'delnm'
-        i.value = name
-        f.appendChild(i)
-        f.method = 'post'
-        f.action = window.location.href
-        document.body.appendChild(f)
-        f.submit()
+qa('.passkey-remove').forEach(button => {
+    e(button, 'click', event => {
+        event.preventDefault()
+        submitRemoval(a.g(button, 'targetname'))
     })
 })
 

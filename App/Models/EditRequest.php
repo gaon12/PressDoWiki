@@ -5,8 +5,9 @@ use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
 use PressDo\App\Helpers\SqlDialect;
+use PressDo\App\Services\Document\DocumentConflictException;
 use PressDo\App\Services\Document\DocumentRevision;
-use PressDo\App\Services\Document\PdoDocumentRevisionStore;
+use PressDo\App\Services\Document\PdoDocumentContentStore;
 use RuntimeException;
 use Throwable;
 
@@ -116,14 +117,17 @@ class EditRequest extends \PressDo\App\Core\Model
         $db = self::db();
         
         try {
-            $d = $db->prepare('UPDATE editrequest SET content = ?, comment = ?, count = ?, lastedit = ? WHERE urlstr = ?');
+            $d = $db->prepare("UPDATE editrequest SET content = ?, comment = ?, count = ?, lastedit = ? WHERE urlstr = ? AND status = 'open'");
             $d->execute([$content, $comment, $newdifflen, time(), $slug]);
+            if ($d->rowCount() !== 1) {
+                throw new DocumentConflictException('The edit request changed before it could be updated.');
+            }
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 수정 중 오류 발생');
         }
     }
     
-    public static function accept(string $slug, array $erdata, ?string $cont_m, ?string $cont_i, int $acceptrev): void
+    public static function accept(string $slug, array $erdata, ?string $cont_m, ?string $cont_i): void
     {
         $db = self::db();
         $revisionId = self::uuid2bin(self::generateUuid());
@@ -134,24 +138,26 @@ class EditRequest extends \PressDo\App\Core\Model
             $cont_i = self::uuid2bin($cont_i);
 
         $document = $erdata['document'] ?? null;
+        $namespace = $erdata['namespace'] ?? null;
+        $title = $erdata['title'] ?? null;
         $content = $erdata['content'] ?? null;
         $comment = $erdata['comment'] ?? null;
-        $lengthDelta = $erdata['count'] ?? null;
+        $baseRevision = filter_var($erdata['baserev'] ?? null, FILTER_VALIDATE_INT);
+        $lastEdit = filter_var($erdata['lastedit'] ?? null, FILTER_VALIDATE_INT);
+        $lengthDelta = filter_var($erdata['count'] ?? null, FILTER_VALIDATE_INT);
         $contributorMember = $erdata['contributor_m'] ?? null;
         $contributorIp = $erdata['contributor_i'] ?? null;
-        if (is_int($lengthDelta)) {
-            $normalizedLengthDelta = $lengthDelta;
-        } elseif (is_string($lengthDelta) && preg_match('/\A-?\d+\z/D', $lengthDelta) === 1) {
-            $normalizedLengthDelta = (int) $lengthDelta;
-        } else {
-            $normalizedLengthDelta = null;
-        }
 
         if (
             !is_string($document)
+            || !is_string($namespace)
+            || !is_string($title)
             || !is_string($content)
-            || !is_string($comment)
-            || $normalizedLengthDelta === null
+            || ($comment !== null && !is_string($comment))
+            || $baseRevision === false
+            || $baseRevision < 1
+            || $lastEdit === false
+            || $lengthDelta === false
             || ($contributorMember !== null && !is_string($contributorMember))
             || ($contributorIp !== null && !is_string($contributorIp))
         ) {
@@ -161,28 +167,42 @@ class EditRequest extends \PressDo\App\Core\Model
         $startedTransaction = !$db->inTransaction();
         if ($startedTransaction) {
             $db->beginTransaction();
+        } else {
+            $db->exec('SAVEPOINT accept_edit_request');
         }
 
         try {
-            $update = $db->prepare("UPDATE editrequest SET status = 'accepted', acceptrev = ?, lastedit = ?, executor_m = ?, executor_i = ? WHERE urlstr = ? AND status = 'open'");
-            $update->bindValue(1, $acceptrev, PDO::PARAM_INT);
+            $nextRevision = $baseRevision + 1;
+            $commentCondition = $comment === null ? 'comment IS NULL' : SqlDialect::caseSensitiveEquals('comment');
+            $update = $db->prepare("UPDATE editrequest SET status = 'accepted', acceptrev = ?, lastedit = ?, executor_m = ?, executor_i = ?
+                WHERE urlstr = ? AND document = ? AND status = 'open' AND baserev = ? AND lastedit = ? AND count = ? AND "
+                . SqlDialect::caseSensitiveEquals('content') . ' AND ' . $commentCondition);
+            $update->bindValue(1, $nextRevision, PDO::PARAM_INT);
             $update->bindValue(2, time(), PDO::PARAM_INT);
             SqlDialect::bindBinary($db, $update, 3, $cont_m);
             SqlDialect::bindBinary($db, $update, 4, $cont_i);
             $update->bindValue(5, $slug);
+            SqlDialect::bindBinary($db, $update, 6, self::uuid2bin($document));
+            $update->bindValue(7, $baseRevision, PDO::PARAM_INT);
+            $update->bindValue(8, $lastEdit, PDO::PARAM_INT);
+            $update->bindValue(9, $lengthDelta, PDO::PARAM_INT);
+            $update->bindValue(10, $content);
+            if ($comment !== null) {
+                $update->bindValue(11, $comment);
+            }
             $update->execute();
             if ($update->rowCount() !== 1) {
-                throw new RuntimeException('열려 있는 편집 요청만 승인할 수 있습니다.');
+                throw new DocumentConflictException('The edit request changed before it could be accepted.');
             }
 
-            (new PdoDocumentRevisionStore($db))->append(new DocumentRevision(
+            (new PdoDocumentContentStore($db))->edit($namespace, $title, $baseRevision, new DocumentRevision(
                 revisionId: $revisionId,
                 documentId: self::uuid2bin($document),
                 content: $content,
-                comment: $comment,
+                comment: $comment ?? '',
                 action: 'modify',
-                revision: $acceptrev,
-                lengthDelta: $normalizedLengthDelta,
+                revision: $nextRevision,
+                lengthDelta: $lengthDelta,
                 contributorMemberId: $contributorMember,
                 contributorIpId: $contributorIp,
                 editRequestSlug: $slug,
@@ -190,10 +210,17 @@ class EditRequest extends \PressDo\App\Core\Model
 
             if ($startedTransaction) {
                 $db->commit();
+            } else {
+                $db->exec('RELEASE SAVEPOINT accept_edit_request');
             }
         } catch (Throwable $error) {
-            if ($startedTransaction && $db->inTransaction()) {
-                $db->rollBack();
+            if ($db->inTransaction()) {
+                if ($startedTransaction) {
+                    $db->rollBack();
+                } else {
+                    $db->exec('ROLLBACK TO SAVEPOINT accept_edit_request');
+                    $db->exec('RELEASE SAVEPOINT accept_edit_request');
+                }
             }
 
             if ($error instanceof PDOException) {
@@ -226,7 +253,7 @@ class EditRequest extends \PressDo\App\Core\Model
         $status = $lock ? 'locked' : 'close';
         
         try {
-            $d = $db->prepare('UPDATE editrequest SET status = ?, lastedit = ?, executor_m = ?, executor_i = ?, reason = ? WHERE urlstr = ?');
+            $d = $db->prepare("UPDATE editrequest SET status = ?, lastedit = ?, executor_m = ?, executor_i = ?, reason = ? WHERE urlstr = ? AND status = 'open'");
             $d->bindValue(1, $status);
             $d->bindValue(2, time(), PDO::PARAM_INT);
             SqlDialect::bindBinary($db, $d, 3, $cont_m);
@@ -234,18 +261,28 @@ class EditRequest extends \PressDo\App\Core\Model
             $d->bindValue(5, $reason);
             $d->bindValue(6, $slug);
             $d->execute();
+            if ($d->rowCount() !== 1) {
+                throw new DocumentConflictException('The edit request changed before it could be closed.');
+            }
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 닫기기 중 오류 발생');
         }
     }
 
-    public static function reopen(string $slug): void
+    public static function reopen(string $slug, string $expectedStatus = 'close'): void
     {
+        if (!in_array($expectedStatus, ['close', 'locked'], true)) {
+            throw new DocumentConflictException('Only a closed or locked edit request can be reopened.');
+        }
+
         $db = self::db();
         
         try {
-            $d = $db->prepare("UPDATE editrequest SET status = 'open', lastedit = ? WHERE urlstr = ?");
-            $d->execute([time(), $slug]);
+            $d = $db->prepare("UPDATE editrequest SET status = 'open', lastedit = ? WHERE urlstr = ? AND status = ?");
+            $d->execute([time(), $slug, $expectedStatus]);
+            if ($d->rowCount() !== 1) {
+                throw new DocumentConflictException('The edit request changed before it could be reopened.');
+            }
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 편집 요청 열기기 중 오류 발생');
         }

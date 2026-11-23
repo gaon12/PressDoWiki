@@ -5,6 +5,7 @@ use PressDo\App\Models\{Document,EditRequest as ER,Member,ACL};
 use PressDo\App\Core\{Controller, Response};
 use PressDo\App\Controllers\ACL as WikiACL;
 use PressDo\App\Helpers\{Languages,Namespaces,Config};
+use PressDo\App\Services\Document\DocumentConflictException;
 
 class EditRequest extends Controller
 {
@@ -48,6 +49,7 @@ class EditRequest extends Controller
 
         $actingUser = $this->session['uuid'] ?? null;
         $isContributor = is_string($actingUser) && $actingUser === $contributor['uuid'];
+        $conflictMessage = Languages::get('msg', 'err_edit_request_conflict');
 
         if ($action === 'edit' && $erdata['status'] === 'open') {
             $ACL->check('edit_request');
@@ -61,13 +63,16 @@ class EditRequest extends Controller
 
             // Edit Submission
             if ($this->request->isMethod('POST') && self::editFormProcess($this, 'eretoken')) {
-                // Approve Edit
-                ER::modify(
-                    $this->uri_data->title,
-                    $this->content,
-                    $this->request->postString('comment'),
-                    iconv_strlen($this->content) - iconv_strlen($baserevdat['content'])
-                );
+                try {
+                    ER::modify(
+                        $this->uri_data->title,
+                        $this->content,
+                        $this->request->postString('comment'),
+                        mb_strlen($this->content) - mb_strlen((string) ($baserevdat['content'] ?? '')),
+                    );
+                } catch (DocumentConflictException) {
+                    Response::text($conflictMessage, 409);
+                }
                 
                 Header('Location: /edit_request/'.$this->uri_data->title);
                 unset($this->session['eretoken']);
@@ -110,32 +115,44 @@ class EditRequest extends Controller
             || ($erdata['status'] === 'locked' && $canLock);
 
         if ($changesStatus) {
-            $allowed = match ($action) {
+            $authorized = match ($action) {
+                'accept' => $canEditDocument,
+                'close' => $isContributor || $canEditDocument,
+                'reopen' => $erdata['status'] === 'locked' ? $canLock : ($isContributor || $canEditDocument),
+            };
+            if (!$authorized) {
+                Response::text('Forbidden', 403);
+            }
+
+            $validState = match ($action) {
                 'accept' => $canAccept,
                 'close' => $canClose,
                 'reopen' => $canReopen,
             };
-            if (!$allowed) {
-                Response::text('Forbidden', 403);
+            if (!$validState) {
+                Response::text($conflictMessage, 409);
             }
 
-            if ($action === 'reopen') {
-                ER::reopen($this->uri_data->title);
-            } else {
-                $member = !empty($this->session['member']) ? $actingUser : null;
-                $ip = $member === null ? ($actingUser ?? Member::getIpUuid($this->session['ip'])) : null;
-                if ($action === 'close') {
-                    ER::close(
-                        $this->uri_data->title,
-                        $this->request->postString('reason'),
-                        $member,
-                        $ip,
-                        $canLock && $this->request->hasPost('lock'),
-                    );
+            try {
+                if ($action === 'reopen') {
+                    ER::reopen($this->uri_data->title, $erdata['status']);
                 } else {
-                    $rev = Document::getVersion($erdata['document']);
-                    ER::accept($this->uri_data->title, $erdata, $member, $ip, $rev + 1);
+                    $member = !empty($this->session['member']) ? $actingUser : null;
+                    $ip = $member === null ? ($actingUser ?? Member::getIpUuid($this->session['ip'])) : null;
+                    if ($action === 'close') {
+                        ER::close(
+                            $this->uri_data->title,
+                            $this->request->postString('reason'),
+                            $member,
+                            $ip,
+                            $canLock && $this->request->hasPost('lock'),
+                        );
+                    } else {
+                        ER::accept($this->uri_data->title, $erdata, $member, $ip);
+                    }
                 }
+            } catch (DocumentConflictException) {
+                Response::text($conflictMessage, 409);
             }
 
             Response::redirect('/edit_request/' . rawurlencode($this->uri_data->title), 303);

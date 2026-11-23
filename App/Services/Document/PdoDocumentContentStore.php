@@ -7,6 +7,7 @@ namespace PressDo\App\Services\Document;
 use InvalidArgumentException;
 use PDO;
 use PDOException;
+use PressDo\App\Helpers\SqlDialect;
 use RuntimeException;
 use Throwable;
 
@@ -159,7 +160,8 @@ final readonly class PdoDocumentContentStore
         }
 
         $select = $this->database->prepare($sql);
-        $select->execute([$documentId]);
+        SqlDialect::bindBinary($this->database, $select, 1, $documentId);
+        $select->execute();
         $row = $select->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
             throw new DocumentConflictException('The document no longer exists.');
@@ -193,8 +195,10 @@ final readonly class PdoDocumentContentStore
 
     private function assertLatestRevision(string $documentId, int $expectedBaseRevision): void
     {
-        $select = $this->database->prepare('SELECT MAX(rev) FROM history WHERE document=?');
-        $select->execute([$documentId]);
+        $lock = $this->database->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+        $select = $this->database->prepare('SELECT rev FROM history WHERE document = ? ORDER BY rev DESC LIMIT 1' . $lock);
+        SqlDialect::bindBinary($this->database, $select, 1, $documentId);
+        $select->execute();
         $latest = $select->fetchColumn();
 
         if ($latest === null || $latest === false) {

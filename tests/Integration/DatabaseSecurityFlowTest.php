@@ -17,6 +17,7 @@ use PressDo\App\Http\Security\SessionLifecycle;
 use PressDo\App\Infrastructure\Database\SchemaMigrator;
 use PressDo\App\Models\EditRequest;
 use PressDo\App\Models\Member;
+use PressDo\App\Services\Document\DocumentConflictException;
 
 $root = dirname(__DIR__, 2);
 require $root . '/vendor/autoload.php';
@@ -34,12 +35,26 @@ if ($driver === 'sqlite' && !in_array($driver, PDO::getAvailableDrivers(), true)
     echo 'Database security flow test skipped (pdo_sqlite unavailable).' . PHP_EOL;
     exit(0);
 }
+$sqliteFile = getenv('PRESSDO_TEST_SQLITE_FIXTURE');
+if ($driver === 'sqlite' && $sqliteFile === false) {
+    $sqliteFile = tempnam(sys_get_temp_dir(), 'pressdo-flow-');
+    expectDatabaseFlow(is_string($sqliteFile), 'Unable to create a disposable SQLite database.');
+    putenv('PRESSDO_TEST_SQLITE_FIXTURE=' . $sqliteFile);
+    try {
+        $suite = proc_open([PHP_BINARY, __FILE__], [STDIN, STDOUT, STDERR], $pipes);
+        expectDatabaseFlow(is_resource($suite), 'Unable to start the SQLite database suite.');
+        $exit = proc_close($suite);
+    } finally {
+        unlink($sqliteFile);
+    }
+    exit($exit);
+}
 
 $config = json_decode(file_get_contents($root . '/templates/config.json'), true, flags: JSON_THROW_ON_ERROR);
 $config['database.type'] = $driver;
 $config['database.host'] = getenv('PRESSDO_TEST_DB_HOST') ?: '127.0.0.1';
 $config['database.port'] = getenv('PRESSDO_TEST_DB_PORT') ?: ($driver === 'pgsql' ? '5432' : '3306');
-$config['database.name'] = $driver === 'sqlite' ? ':memory:' : (getenv('PRESSDO_TEST_DB_NAME') ?: 'pressdo_test');
+$config['database.name'] = $driver === 'sqlite' ? $sqliteFile : (getenv('PRESSDO_TEST_DB_NAME') ?: 'pressdo_test');
 $config['database.user'] = getenv('PRESSDO_TEST_DB_USER') ?: 'pressdo_test';
 $config['database.password'] = getenv('PRESSDO_TEST_DB_PASSWORD') ?: '';
 $config['wiki.mark'] = 'NamuMark';
@@ -57,6 +72,9 @@ if (($argv[1] ?? null) === '--request') {
     SessionLifecycle::start(Request::fromGlobals(), '');
     $_SESSION = $fixture['session'];
     $_POST['_csrf'] = (new CsrfTokenManager())->issueBrowserToken($_SESSION);
+    if ($fixture['gated'] && trim((string) fgets(STDIN)) !== 'start') {
+        exit(1);
+    }
     register_shutdown_function(static function (): void {
         echo PHP_EOL . 'STATUS=' . (http_response_code() ?: 200);
     });
@@ -64,15 +82,23 @@ if (($argv[1] ?? null) === '--request') {
     exit;
 }
 
-function expectDatabaseResponse(string $uri, int $status, array $post = [], array $session = [], array $cookies = []): void
+function startDatabaseRequest(string $uri, array $post, array $session, array $cookies, bool $gated = false): array
 {
-    $fixture = base64_encode(json_encode(compact('uri', 'post', 'session', 'cookies'), JSON_THROW_ON_ERROR));
+    $fixture = base64_encode(json_encode(compact('uri', 'post', 'session', 'cookies', 'gated'), JSON_THROW_ON_ERROR));
     $process = proc_open(
         [PHP_BINARY, __FILE__, '--request', $fixture],
-        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
     );
     expectDatabaseFlow(is_resource($process), 'Unable to start the request fixture.');
+
+    return [$uri, $process, $pipes];
+}
+
+function finishDatabaseRequest(array $request): int
+{
+    [$uri, $process, $pipes] = $request;
+    fclose($pipes[0]);
     $output = stream_get_contents($pipes[1]);
     $errors = stream_get_contents($pipes[2]);
     fclose($pipes[1]);
@@ -80,13 +106,36 @@ function expectDatabaseResponse(string $uri, int $status, array $post = [], arra
     $exit = proc_close($process);
 
     expectDatabaseFlow(
-        $exit === 0 && $errors === '' && str_ends_with($output, 'STATUS=' . $status),
-        "$uri should return $status. Response: " . substr($output, -200) . ' Errors: ' . $errors,
+        $exit === 0 && $errors === '' && preg_match('/STATUS=(\d+)\z/', $output, $matches) === 1,
+        "$uri should complete. Response: " . substr($output, -200) . ' Errors: ' . $errors,
     );
+
+    return (int) $matches[1];
+}
+
+function expectDatabaseResponse(string $uri, int $status, array $post = [], array $session = [], array $cookies = []): void
+{
+    $actual = finishDatabaseRequest(startDatabaseRequest($uri, $post, $session, $cookies));
+    expectDatabaseFlow($actual === $status, "$uri should return $status, but returned $actual.");
+}
+
+function expectDatabaseRace(string $first, string $second, array $session): void
+{
+    $requests = [
+        startDatabaseRequest($first, [], $session, [], true),
+        startDatabaseRequest($second, [], $session, [], true),
+    ];
+    foreach ($requests as $request) {
+        fwrite($request[2][0], "start\n");
+    }
+    $statuses = array_map('finishDatabaseRequest', $requests);
+    sort($statuses);
+    expectDatabaseFlow($statuses === [303, 409], 'Concurrent conflicting requests must redirect once and return one conflict.');
 }
 
 $db = Database::getInstance();
 if ($driver === 'sqlite') {
+    expectDatabaseFlow(filesize($sqliteFile) === 0, 'The SQLite fixture must be an empty temporary file.');
     $db->exec(file_get_contents($root . '/templates/database_scheme.sqlite.sql'));
 }
 expectDatabaseFlow(Config::get('wiki.language') === 'ko-kr', 'The app must be able to load its configuration.');
@@ -168,60 +217,88 @@ $slug = 'edit_' . $suffix;
 EditRequest::create($slug, $documentId, '편집 요청 본문', 'request', $target['uuid'], null, 1, 8);
 expectDatabaseFlow(EditRequest::getBulk($documentId) === [['urlstr' => $slug]], 'The edit request should be listed as open.');
 expectDatabaseFlow((int) EditRequest::get($slug)['count'] === 8, 'Creation should persist its initial character delta.');
+$beforeEdit = EditRequest::get($slug);
 EditRequest::modify($slug, '수정한 본문', 'updated', 6);
+try {
+    EditRequest::accept($slug, $beforeEdit, $actor['uuid'], null);
+    expectDatabaseFlow(false, 'Approval must not use a proposal superseded by an edit.');
+} catch (DocumentConflictException) {
+    expectDatabaseFlow(EditRequest::get($slug)['status'] === 'open', 'A superseded approval must leave the request open.');
+}
 EditRequest::close($slug, 'closed', $actor['uuid'], null);
 expectDatabaseFlow(EditRequest::get($slug)['status'] === 'close', 'The edit request should be closed.');
 EditRequest::reopen($slug);
 $request = EditRequest::get($slug);
 expectDatabaseFlow($request !== null && $request['contributor_m'] === Model::uuid2bin($target['uuid']), 'Reading a reopened request must preserve the contributor ID.');
-EditRequest::accept($slug, $request, $actor['uuid'], null, Model::getVersion($documentId) + 1);
+EditRequest::accept($slug, $request, $actor['uuid'], null);
 expectDatabaseFlow(EditRequest::get($slug)['status'] === 'accepted', 'The edit request should be accepted.');
 $revision = $db->prepare('SELECT content, rev FROM history WHERE edit_request_uri = ?');
 $revision->execute([$slug]);
 $saved = $revision->fetchAll();
 expectDatabaseFlow(count($saved) === 1 && $saved[0]['content'] === '수정한 본문' && (int) $saved[0]['rev'] === 2, 'Acceptance must persist one linked revision.');
 
-if ($driver !== 'sqlite') {
-    $trust = Member::saveCookies($actor['uuid'], 'podgorica', 600);
-    expectDatabaseResponse('/member/login', 302, [
-        'username' => $actor['username'],
-        'password' => 'test-reset-password',
-    ], cookies: ['podgorica' => $trust]);
+$trust = Member::saveCookies($actor['uuid'], 'podgorica', 600);
+expectDatabaseResponse('/member/login', 302, [
+    'username' => $actor['username'],
+    'password' => 'test-reset-password',
+], cookies: ['podgorica' => $trust]);
 
-    $identity = [
-        'uuid' => $actor['uuid'],
-        'credential' => Member::sessionCredential($actor['uuid']),
-        'member' => ['username' => $actor['username']],
-    ];
-    $perm = $db->prepare("UPDATE member SET perm = 'grant,mark_troll_revision,delete_thread' WHERE uuid = ?");
-    SqlDialect::bindBinary($db, $perm, 1, Model::uuid2bin($actor['uuid']));
-    $perm->execute();
-    $grantUrl = '/admin/grant?username=' . rawurlencode($target['username']);
-    expectDatabaseResponse($grantUrl, 403, ['grant_permissions' => '1', 'permissions' => ['admin']], $identity);
-    expectDatabaseResponse($grantUrl, 303, [
-        'grant_permissions' => '1',
-        'permissions' => ['mark_troll_revision', 'delete_thread'],
-    ], $identity);
-    expectDatabaseFlow(in_array('delete_thread', Member::specialPerms($target['uuid']), true), 'Authorized grant POST must persist the selected permission.');
+$identity = [
+    'uuid' => $actor['uuid'],
+    'credential' => Member::sessionCredential($actor['uuid']),
+    'member' => ['username' => $actor['username']],
+];
+$perm = $db->prepare("UPDATE member SET perm = 'grant,mark_troll_revision,delete_thread' WHERE uuid = ?");
+SqlDialect::bindBinary($db, $perm, 1, Model::uuid2bin($actor['uuid']));
+$perm->execute();
+$grantUrl = '/admin/grant?username=' . rawurlencode($target['username']);
+expectDatabaseResponse($grantUrl, 403, ['grant_permissions' => '1', 'permissions' => ['admin']], $identity);
+expectDatabaseResponse($grantUrl, 303, [
+    'grant_permissions' => '1',
+    'permissions' => ['mark_troll_revision', 'delete_thread'],
+], $identity);
+expectDatabaseFlow(in_array('delete_thread', Member::specialPerms($target['uuid']), true), 'Authorized grant POST must persist the selected permission.');
 
-    $acl = $db->prepare(SqlDialect::normalizeIdentifiers("INSERT INTO acl_document (uuid, access, `condition`, action, `until`) VALUES (?, ?, ?, 'allow', 0)"));
-    SqlDialect::bindBinary($db, $acl, 1, Model::uuid2bin($documentId));
-    foreach (['read' => 'perm:any', 'edit' => 'perm:admin'] as $access => $condition) {
-        $acl->bindValue(2, $access);
-        $acl->bindValue(3, $condition);
-        $acl->execute();
-    }
-    $routeSlug = 'route_' . $suffix;
-    EditRequest::create($routeSlug, $documentId, '변경된 제안', 'route', $target['uuid'], null, 2, 3);
-    $acceptUrl = '/edit_request/' . $routeSlug . '/accept';
-    expectDatabaseResponse($acceptUrl, 403, session: $identity);
-    expectDatabaseFlow(EditRequest::get($routeSlug)['status'] === 'open', 'Denied approval must leave the request open.');
-
-    $rule = $db->prepare(SqlDialect::normalizeIdentifiers("UPDATE acl_document SET `condition` = 'perm:member' WHERE uuid = ? AND access = 'edit'"));
-    SqlDialect::bindBinary($db, $rule, 1, Model::uuid2bin($documentId));
-    $rule->execute();
-    expectDatabaseResponse($acceptUrl, 303, session: $identity);
-    expectDatabaseFlow(EditRequest::get($routeSlug)['status'] === 'accepted' && Model::getVersion($documentId) === 3, 'Authorized approval must persist its revision.');
+$acl = $db->prepare(SqlDialect::normalizeIdentifiers("INSERT INTO acl_document (uuid, access, `condition`, action, `until`) VALUES (?, ?, ?, 'allow', 0)"));
+SqlDialect::bindBinary($db, $acl, 1, Model::uuid2bin($documentId));
+foreach (['read' => 'perm:any', 'edit' => 'perm:admin'] as $access => $condition) {
+    $acl->bindValue(2, $access);
+    $acl->bindValue(3, $condition);
+    $acl->execute();
 }
+$routeSlug = 'route_' . $suffix;
+EditRequest::create($routeSlug, $documentId, '변경된 제안', 'route', $target['uuid'], null, 2, 3);
+$acceptUrl = '/edit_request/' . $routeSlug . '/accept';
+expectDatabaseResponse($acceptUrl, 403, session: $identity);
+expectDatabaseFlow(EditRequest::get($routeSlug)['status'] === 'open', 'Denied approval must leave the request open.');
+
+$rule = $db->prepare(SqlDialect::normalizeIdentifiers("UPDATE acl_document SET `condition` = 'perm:member' WHERE uuid = ? AND access = 'edit'"));
+SqlDialect::bindBinary($db, $rule, 1, Model::uuid2bin($documentId));
+$rule->execute();
+expectDatabaseResponse($acceptUrl, 303, session: $identity);
+expectDatabaseFlow(EditRequest::get($routeSlug)['status'] === 'accepted' && Model::getVersion($documentId) === 3, 'Authorized approval must persist its revision.');
+expectDatabaseResponse('/edit_request/' . $routeSlug . '/close', 409, session: $identity);
+expectDatabaseResponse('/edit_request/' . $routeSlug . '/reopen', 409, session: $identity);
+
+$first = 'first_' . $suffix;
+$second = 'second_' . $suffix;
+EditRequest::create($first, $documentId, 'First concurrent proposal', '', $target['uuid'], null, 3, 5);
+EditRequest::create($second, $documentId, 'Second concurrent proposal', '', $target['uuid'], null, 3, 6);
+expectDatabaseRace("/edit_request/$first/accept", "/edit_request/$second/accept", $identity);
+$states = [EditRequest::get($first)['status'], EditRequest::get($second)['status']];
+sort($states);
+expectDatabaseFlow($states === ['accepted', 'open'], 'The superseded request must remain open.');
+
+$newRevisions = $db->prepare('SELECT rev FROM history WHERE document = ? AND rev >= 4 ORDER BY rev');
+SqlDialect::bindBinary($db, $newRevisions, 1, Model::uuid2bin($documentId));
+$newRevisions->execute();
+expectDatabaseFlow(array_map('intval', $newRevisions->fetchAll(PDO::FETCH_COLUMN)) === [4], 'Concurrent approvals must create exactly one new revision.');
+
+$last = 'last_' . $suffix;
+EditRequest::create($last, $documentId, 'Approval and closure race', '', $target['uuid'], null, 4, 2);
+expectDatabaseRace("/edit_request/$last/accept", "/edit_request/$last/close", $identity);
+$status = EditRequest::get($last)['status'];
+expectDatabaseFlow(in_array($status, ['accepted', 'close'], true), 'The winner must keep its final status.');
+expectDatabaseFlow(Model::getVersion($documentId) === ($status === 'accepted' ? 5 : 4), 'The document may only change if approval wins.');
 
 echo "Database security flow test passed ($driver)." . PHP_EOL;

@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use PressDo\App\Core\Model;
+use PressDo\App\Helpers\Database;
 use PressDo\App\Models\Document;
 use PressDo\App\Models\EditRequest;
+use PressDo\App\Services\Document\DocumentConflictException;
 use PressDo\App\Services\Document\DocumentRevision;
 use PressDo\App\Services\Document\PdoDocumentRevisionStore;
 
@@ -28,7 +30,7 @@ $database->exec(
     'CREATE TABLE history (uuid BLOB PRIMARY KEY, document BLOB NOT NULL, content TEXT, comment TEXT NOT NULL, action TEXT NOT NULL, rev INTEGER NOT NULL, count INTEGER NOT NULL, contributor_m BLOB, contributor_i BLOB, edit_request_uri TEXT, moved_from TEXT, moved_to TEXT)',
 );
 $database->exec(
-    'CREATE TABLE editrequest (urlstr TEXT PRIMARY KEY, status TEXT NOT NULL, acceptrev INTEGER, lastedit INTEGER, executor_m BLOB, executor_i BLOB)',
+    'CREATE TABLE editrequest (urlstr TEXT PRIMARY KEY, document BLOB, status TEXT NOT NULL, content TEXT, comment TEXT, baserev INTEGER, count INTEGER, acceptrev INTEGER, lastedit INTEGER, executor_m BLOB, executor_i BLOB)',
 );
 
 $documentUuid = '00112233-4455-6677-8899-aabbccddeeff';
@@ -115,6 +117,7 @@ if ((int) $database->query('SELECT COUNT(*) FROM history')->fetchColumn() !== 0)
 }
 
 (new ReflectionProperty(Model::class, 'db'))->setValue(null, $database);
+(new ReflectionProperty(Database::class, 'driver'))->setValue(null, 'sqlite');
 $database->prepare(
     "INSERT INTO history (uuid, document, content, comment, action, rev, count) VALUES (?, ?, '기존 본문', 'initial', 'create', 1, 5)",
 )->execute([hex2bin('abababababababababababababababab'), $documentId]);
@@ -127,22 +130,41 @@ if ($latestAction !== 'modify') {
     failDocumentRevisionStoreTest('Document::save should append the requested history action.');
 }
 
-$database->exec('DELETE FROM history');
+$database->exec('DELETE FROM history WHERE rev > 1');
 $database->exec('UPDATE document SET backlink_updated=1');
-$database->exec("INSERT INTO editrequest (urlstr, status) VALUES ('request-2', 'open')");
-EditRequest::accept('request-2', [
+$database->prepare(
+    "INSERT INTO editrequest (urlstr, document, status, content, comment, baserev, count, lastedit)
+    VALUES ('request-2', ?, 'open', '편집 요청 본문', 'accepted', 1, 4, 42), ('stale-request', ?, 'open', '편집 요청 본문', 'accepted', 1, 4, 42)",
+)->execute([$documentId, $documentId]);
+$proposal = [
     'document' => $documentUuid,
+    'namespace' => '문서',
+    'title' => '테스트',
     'content' => '편집 요청 본문',
     'comment' => 'accepted',
+    'baserev' => 1,
     'count' => '4',
+    'lastedit' => 42,
     'contributor_m' => null,
     'contributor_i' => null,
-], null, null, 2);
+];
+EditRequest::accept('request-2', $proposal, null, null);
+
+$database->beginTransaction();
+try {
+    EditRequest::accept('stale-request', $proposal, null, null);
+    failDocumentRevisionStoreTest('Approval against an outdated base revision must fail.');
+} catch (DocumentConflictException) {
+    if (!$database->inTransaction() || $database->query("SELECT status FROM editrequest WHERE urlstr='stale-request'")->fetchColumn() !== 'open') {
+        failDocumentRevisionStoreTest('A conflicting approval must leave the request open even inside a caller transaction.');
+    }
+}
+$database->commit();
 
 if ($database->query("SELECT status FROM editrequest WHERE urlstr='request-2'")->fetchColumn() !== 'accepted') {
     failDocumentRevisionStoreTest('Accepting an edit request should update its status.');
 }
-if ($database->query('SELECT edit_request_uri FROM history')->fetchColumn() !== 'request-2') {
+if ($database->query('SELECT edit_request_uri FROM history WHERE rev=2')->fetchColumn() !== 'request-2') {
     failDocumentRevisionStoreTest('Accepting an edit request should append a linked document revision.');
 }
 if ((int) $database->query('SELECT backlink_updated FROM document')->fetchColumn() !== 0) {

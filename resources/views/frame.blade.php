@@ -8,6 +8,9 @@
 <head>
     <link href="{{ $config['wiki.logo_url'] ?? '/favicon.ico' }}" rel="icon">
     <meta charset="UTF-8">
+    @if (isset($csrfToken))
+        <meta name="csrf-token" content="{{ $csrfToken }}">
+    @endif
     <meta name="viewport" content="user-scalable=no, initial-scale=1, width=device-width, viewport-fit=cover">
     <meta name="generator" content="PressDo">
     <meta name="mobile-web-app-capable" content="yes">

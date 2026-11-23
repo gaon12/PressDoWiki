@@ -77,6 +77,7 @@
                         <td>{{ $object['size'] }} bytes</td>
                         <td>
                             <form method="post" action="/admin/storage_integrity" data-orphan-cleanup>
+                                @include('partials.csrf')
                                 <input type="hidden" name="token" value="{{ $report['cleanup_token'] }}">
                                 <input type="hidden" name="delete_key" value="{{ $object['object_key'] }}">
                                 <input type="hidden" name="last_modified" value="{{ $object['last_modified_epoch'] }}">

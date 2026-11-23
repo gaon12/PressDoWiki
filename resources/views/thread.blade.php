@@ -13,6 +13,7 @@
     </div>@endif
     <div>
         <form data-pressdo-thread-show method="POST" action="{{ ($request_uri ?? '') }}" class="d">
+            @include('partials.csrf')
             <input type="checkbox" id="no_display_hidden_comment"><label for="no_display_hidden_comment">{{ $lang['msg']['no_display_hidden_comment'] }}</label>
         </form>
         <h2 data-pressdo-thread-topic>{{ $wiki['page']['data']['topic'] }}</h2>
@@ -66,6 +67,7 @@
             </div>
         <h3 data-pressdo-discuss-type>{{ $lang['thread']['write_thread_comment'] }}</h3>
             @if ($wiki['page']['data']['updateThreadStatus'] === true)<form method="post">
+                @include('partials.csrf')
                 [ADMIN] {{ $lang['thread']['updateThreadStatus'] }}
                 <select name="status">
                     @foreach (['normal', 'pause', 'close'] as $s)
@@ -75,16 +77,19 @@
                 <button class="pressdo-btn" type="submit">{{ $lang['change'] }}</button>
             </form>@endif
             @if ($wiki['page']['data']['updateThreadDocument'] === true)<form method="post">
+                @include('partials.csrf')
                 [ADMIN] {{ $lang['thread']['updateThreadDocument'] }}
                 <input type="text" name="document" value="{{ $wiki['page']['title'] }}">
                 <button class="pressdo-btn" type="submit">{{ $lang['change'] }}</button>
             </form>@endif
             @if ($wiki['page']['data']['updateThreadTopic'] === true)<form method="post">
+                @include('partials.csrf')
                 [ADMIN] {{ $lang['thread']['updateThreadTopic'] }}
                 <input type="text" name="topic" value="{{ $wiki['page']['data']['topic'] }}">
                 <button class="pressdo-btn" type="submit">{{ $lang['change'] }}</button>
             </form>@endif
         <form method="post" class="editor">
+            @include('partials.csrf')
             <ul class="selector">
                 <li class="selector"><button class="selector-btn btn-wideright">{{ $lang['editor']['raw'] }}</button></li>
                 <li class="selector"><button class="selector-btn btn-wideright">{{ $lang['editor']['preview'] }}</button></li>

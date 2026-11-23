@@ -2,7 +2,7 @@
 namespace PressDo\App\Controllers\Pages;
 
 use PressDo\App\Models\{Document,EditRequest as ER,Member,ACL};
-use PressDo\App\Core\Controller;
+use PressDo\App\Core\{Controller, Response};
 use PressDo\App\Controllers\ACL as WikiACL;
 use PressDo\App\Helpers\{Languages,Namespaces,Config};
 
@@ -12,20 +12,26 @@ class EditRequest extends Controller
 
     public function makeData(): array
     {
+        $action = $this->uri_data->action ?? '';
+        $changesStatus = in_array($action, ['accept', 'close', 'reopen'], true);
+        if ($changesStatus && !$this->request->isMethod('POST')) {
+            Response::methodNotAllowed('POST');
+        }
+
         $error = [];
         $erdata = ER::get($this->uri_data->title);
-
-        $ACL = new WikiACL($erdata['namespace'], $erdata['title'], $erdata['document'], $this->session, $error);
-        $ACL->check('read');
-
-        if ($erdata === null)
+        if ($erdata === null) {
             $error = ['code' => 'editrequest_not_found'];
+        } else {
+            $ACL = new WikiACL($erdata['namespace'], $erdata['title'], $erdata['document'], $this->session, $error);
+            $ACL->check('read');
+        }
 
-        if (!empty($error['code'])) {
+        if ($error !== []) {
             return [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),
-                'data' => $error
+                'data' => $error,
             ];
         }
 
@@ -40,42 +46,31 @@ class EditRequest extends Controller
             'thread' => false
         ]);
 
-        if (($error['code'] ?? null) == 'permission_read') {
-            return [
-                'view_name' => 'error',
-                'title' => Languages::get('page', 'error'),
-                'data' => $error
-            ];
-        }
+        $actingUser = $this->session['uuid'] ?? null;
+        $isContributor = is_string($actingUser) && $actingUser === $contributor['uuid'];
 
-        if ($this->uri_data->action == 'edit' && $erdata['status'] == 'open') {
-            if (($error['code'] ?? null) !== 'permission_read')
-                $ACL->check('edit_request');
-
-            if (($error['code'] ?? null) == 'permission_edit_request')
-                $this->error = $error;
-
-            if ($this->session['uuid'] !== $contributor['uuid']) {
-                $error = ['code' => 'err_not_self_modify'];
+        if ($action === 'edit' && $erdata['status'] === 'open') {
+            $ACL->check('edit_request');
+            if (!$isContributor || $error !== []) {
                 return [
                     'view_name' => 'error',
                     'title' => Languages::get('page', 'error'),
-                    'data' => $error
+                    'data' => $error ?: ['code' => 'err_not_self_modify'],
                 ];
             }
 
             // Edit Submission
-            if (isset($_POST['token']) && isset($_POST['content']) && self::editFormProcess($this, 'eretoken')) {
+            if ($this->request->isMethod('POST') && self::editFormProcess($this, 'eretoken')) {
                 // Approve Edit
                 ER::modify(
                     $this->uri_data->title,
                     $this->content,
-                    $_POST['comment'],
+                    $this->request->postString('comment'),
                     iconv_strlen($this->content) - iconv_strlen($baserevdat['content'])
                 );
                 
                 Header('Location: /edit_request/'.$this->uri_data->title);
-                unset($this->session['ertoken']);
+                unset($this->session['eretoken']);
                 $_SESSION = $this->session;
                 exit;
             }
@@ -99,42 +94,52 @@ class EditRequest extends Controller
                 ]
             ];
     
+            $this->session['raw'] = $erdata['content'];
             $this->session['eretoken'] = $page['data']['token'];
             return $page;
-        } elseif ($this->uri_data->action == 'close' && $erdata['status'] == 'open' && ($this->session['uuid'] == $contributor['uuid'] || ($error['code'] ?? null) !== 'permission_edit')) {
-            $member = $this->session['member'] ? $this->session['uuid'] : null;
-            $ip = !$member ? ($this->session['uuid'] ?? Member::getIpUuid($this->session['ip'])) : null;
-            if (!$member && !$this->session['uuid']) {
-                $this->session['uuid'] = $ip;
-            }
-            ER::close(
-                $this->uri_data->title,
-                $_POST['reason'],
-                $member,
-                $ip,
-                isset($_POST['lock'])
-            );
-            
-            Header('Location: /edit_request/'.$this->uri_data->title);
-            exit;
-        } elseif ($this->uri_data->action == 'reopen' && $erdata['status'] !== 'open' && ($erdata['status'] !== 'locked' || in_array('admin', $ACL->perms))) {
-            ER::reopen($this->uri_data->title);
-            Header('Location: /edit_request/'.$this->uri_data->title);
-            exit;
-        } elseif ($this->uri_data->action == 'accept' && $erdata['status'] == 'open' && ($error['code'] ?? null) !== 'permission_edit') {
-            $member = $this->session['member'] ? $this->session['uuid'] : null;
-            $ip = !$member ? ($this->session['uuid'] ?? Member::getIpUuid($this->session['ip'])) : null;
-            if (!$member && !$this->session['uuid']) {
-                $this->session['uuid'] = $ip;
-            }
-            $rev = Document::getVersion($erdata['document']);
-            ER::accept($this->uri_data->title, $erdata, $member, $ip, $rev + 1);
-            Header('Location: /edit_request/'.$this->uri_data->title);
-            exit;
         }
 
-        if (($error['code'] ?? null) !== 'permission_read')
-            $ACL->check('edit');
+        $ACL->check('edit');
+        $canEditDocument = $error === [];
+        $isAdmin = in_array('admin', $ACL->perms, true);
+        $isOpen = $erdata['status'] === 'open';
+        $canAccept = $isOpen && $canEditDocument;
+        $canClose = $isOpen && ($isContributor || $canEditDocument);
+        $canLock = $canEditDocument && $isAdmin;
+        $canReopen = ($erdata['status'] === 'close' && ($isContributor || $canEditDocument))
+            || ($erdata['status'] === 'locked' && $canLock);
+
+        if ($changesStatus) {
+            $allowed = match ($action) {
+                'accept' => $canAccept,
+                'close' => $canClose,
+                'reopen' => $canReopen,
+            };
+            if (!$allowed) {
+                Response::text('Forbidden', 403);
+            }
+
+            if ($action === 'reopen') {
+                ER::reopen($this->uri_data->title);
+            } else {
+                $member = !empty($this->session['member']) ? $actingUser : null;
+                $ip = $member === null ? ($actingUser ?? Member::getIpUuid($this->session['ip'])) : null;
+                if ($action === 'close') {
+                    ER::close(
+                        $this->uri_data->title,
+                        $this->request->postString('reason'),
+                        $member,
+                        $ip,
+                        $canLock && $this->request->hasPost('lock'),
+                    );
+                } else {
+                    $rev = Document::getVersion($erdata['document']);
+                    ER::accept($this->uri_data->title, $erdata, $member, $ip, $rev + 1);
+                }
+            }
+
+            Response::redirect('/edit_request/' . rawurlencode($this->uri_data->title), 303);
+        }
 
         $page = [
             'view_name' => 'edit_request',
@@ -166,11 +171,11 @@ class EditRequest extends Controller
                     'lastedit' => $erdata['lastedit'],
                     'acceptrev' => $erdata['acceptrev']
                 ],
-                'can_accept' => false,
-                'can_close' => true,
-                'can_lock' => false,
-                'can_reopen' => false,
-                'can_edit' => false,
+                'can_accept' => $canAccept,
+                'can_close' => $canClose,
+                'can_lock' => $canLock,
+                'can_reopen' => $canReopen,
+                'can_edit' => $isOpen && $isContributor,
                 'diff' => self::loadDiff(
                     $baserevdat['content'],
                     $erdata['content'],
@@ -183,29 +188,15 @@ class EditRequest extends Controller
             ]
         ];
 
-        if ($page['data']['body']['status'] == 'open') {
-            if ($error !== 'permission_edit') {
-                $page['data']['can_accept'] = true;
-                $page['data']['can_close'] = true;
-            }
-
-            if (in_array('admin', $ACL->perms))
-                $page['data']['can_lock'] = true;
-
-            if ($this->session['uuid'] == $contributor['uuid']) {
-                $page['data']['can_edit'] = true;
-                $page['data']['can_close'] = true;
-            }
-        } elseif ($page['data']['body']['status'] == 'close' || $page['data']['body']['status'] == 'locked') {
-            if ($page['data']['body']['status'] !== 'locked' || in_array('admin', $ACL->perms))
-                $page['data']['can_reopen'] = true;
-        }
-
         return $page;
     }
 
     private function getUserIdfData(?string $uuid, ?string $ip): array
     {
+        if (empty($uuid) && empty($ip)) {
+            return ['member' => null, 'ip' => null, 'uuid' => null, 'admin' => false, 'style' => ''];
+        }
+
         $mperms = [];
         if (!empty($ip)) {
             $Cuuid = Document::bin2uuid($ip);

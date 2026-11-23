@@ -33,6 +33,7 @@
     </li>@endif
 </ul>
 <form data-pressdo-aclgroup method="POST" action="{{ ($request_uri ?? '') }}" class="a">
+    @include('partials.csrf')
     <input data-pressdo-aclgroup class="pressdo-form" type="hidden" name="group" value="{{ $wiki['page']['data']['currentgroup'] }}">
     <div data-pressdo-aclgroup class="g">
         <select data-pressdo-aclgroup class="pressdo-form" name="mode" id="agmd">
@@ -146,6 +147,7 @@
                 <span>{{ $lang['msg'][$err[0]] }}</span>
             </div>@endif
             <form method="POST" action="{{ ($request_uri ?? '') }}">
+                @include('partials.csrf')
                 <input class="pressdo-form" id="idto_remove" type="hidden" name="id" value>
                 <input class="pressdo-form" type="hidden" name="group" value="{{ $wiki['page']['data']['currentgroup'] }}">
                 <h4>{{ $lang['acl']['remove_member'] }}</h4>
@@ -179,6 +181,7 @@
                 <span>{{ $lang['msg'][$err[0]] }}</span>
             </div>@endif
             <form method="POST" action="{{ ($request_uri ?? '') }}">
+                @include('partials.csrf')
                 <h4>{{ $lang['acl']['group_add'] }}</h4>
                 <div>
                     <p>{{ $lang['acl']['group_name'] }}:</p>

@@ -3,6 +3,7 @@
     <span>{{ $error['message'] }}</span>
 </div>@endif
 <form id="uploadForm" method="POST" enctype="multipart/form-data">
+    @include('partials.csrf')
     <input type="hidden" name="token" value="{{ $wiki['page']['data']['token'] }}">
     <input type="hidden" name="MAX_FILE_SIZE" value="10000000">
     <input type="hidden" name="baserev" value="0">

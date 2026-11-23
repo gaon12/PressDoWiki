@@ -37,14 +37,16 @@ final class Response
         exit;
     }
 
-    public static function methodNotAllowed(string $allowedMethod): never
+    public static function methodNotAllowed(string $method, string ...$additionalMethods): never
     {
-        $allowedMethod = strtoupper($allowedMethod);
-        if (preg_match('/^[A-Z]+$/D', $allowedMethod) !== 1) {
-            throw new InvalidArgumentException('An allowed HTTP method must contain only ASCII letters.');
+        $methods = array_map('strtoupper', [$method, ...$additionalMethods]);
+        foreach ($methods as $allowedMethod) {
+            if (preg_match('/^[A-Z]+$/D', $allowedMethod) !== 1) {
+                throw new InvalidArgumentException('An allowed HTTP method must contain only ASCII letters.');
+            }
         }
 
-        header('Allow: ' . $allowedMethod);
+        header('Allow: ' . implode(', ', $methods));
         self::text('Method Not Allowed', 405);
     }
 

@@ -13,6 +13,7 @@
         </div>
     </form>
     @if (!empty($wiki['page']['data']['username']))<form method="POST" action="{{ $request_uri }}">
+        @include('partials.csrf')
         <h3>{{ $wiki['page']['data']['username'] }}</h3>
         @foreach ($wiki['page']['data']['perms'] as $p)<div class="c form">
             <label for="{{ $p }}">{{ $p }}</label>

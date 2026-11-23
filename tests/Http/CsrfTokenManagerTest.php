@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PressDo\App\Core\Request;
 use PressDo\App\Http\Security\CsrfTokenManager;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
@@ -29,6 +30,24 @@ foreach ([null, '', [], str_repeat('0', 64)] as $forgedToken) {
 $manager->consume($session, 'uploadtoken');
 if ($manager->validate($session, 'uploadtoken', $token)) {
     failCsrfTokenManagerTest('A consumed token must not be reusable.');
+}
+
+$browserSession = [];
+$browserToken = (new CsrfTokenManager())->issueBrowserToken($browserSession);
+$browserCsrf = new CsrfTokenManager();
+$validPost = new Request(post: ['_csrf' => $browserToken], server: ['REQUEST_METHOD' => 'POST']);
+$invalidRequests = [
+    new Request(query: ['_csrf' => $browserToken], server: ['REQUEST_METHOD' => 'POST']),
+    new Request(post: ['_csrf' => ['invalid']], server: ['REQUEST_METHOD' => 'POST']),
+    new Request(post: ['_csrf' => $browserToken], server: ['REQUEST_METHOD' => 'GET']),
+];
+if (!$browserCsrf->validateBrowserPost($browserSession, $validPost) || $browserCsrf->validateBrowserPost([], $validPost)) {
+    throw new RuntimeException('A browser POST token should only work with its issuing session.');
+}
+foreach ($invalidRequests as $invalidRequest) {
+    if ($browserCsrf->validateBrowserPost($browserSession, $invalidRequest)) {
+        throw new RuntimeException('A browser POST token must come from a scalar POST field.');
+    }
 }
 
 echo 'CSRF token manager tests passed.' . PHP_EOL;

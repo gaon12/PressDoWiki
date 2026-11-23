@@ -169,20 +169,21 @@ class History extends \PressDo\App\Core\Model
 
     /**
      * Mark revision as troll
+     * @param string $document  uuid of document
      * @param string $uuid      uuid of revision
      * @param string $executor  uuid of executor
      * @throws \ErrorException
      * @return void
      */
-    public static function markTroll(string $uuid, string $executor)
+    public static function markTroll(string $document, string $uuid, string $executor): void
     {
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
         $executor = self::uuid2bin($executor);
 
         try {
-            $d = $db->prepare("UPDATE history SET mark_troll_user = CASE WHEN `mark_troll_user` IS NULL THEN ? ELSE NULL END WHERE uuid = ?;");
-            $d->execute([$executor, $uuid]);
+            $d = $db->prepare("UPDATE history SET mark_troll_user = CASE WHEN mark_troll_user IS NULL THEN ? ELSE NULL END WHERE uuid = ? AND document = ?");
+            $d->execute([$executor, $uuid, self::uuid2bin($document)]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 반달 표시 중 오류 발생');
         }

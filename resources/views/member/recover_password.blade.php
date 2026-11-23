@@ -3,6 +3,7 @@
     <span>{{ $lang['msg'][$wiki['page']['data']['error']] }}</span>
 </div>@endif
 @if ($wiki['page']['data']['step'] === 0)<form id="loginform" method="post" class="authform">
+    @include('partials.csrf')
     <div class="form-sheet">
         <label for="emailInput">{{ $lang['auth']['email'] }}</label>
         <input class="textfield" type="email" id="emailInput" name="email">
@@ -25,6 +26,7 @@
     </ul>
 @endif
 @if ($wiki['page']['data']['step'] === 2)<form id="signupform" class="authform" name="signupform" method="POST">
+    @include('partials.csrf')
     <p>{{ $lang['msg']['enter_new_password'] }}</p>
     <div class="form-sheet">
         <label for="password">{{ $lang['auth']['password'] }}</label>

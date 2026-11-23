@@ -7,6 +7,7 @@
     <span>{{ $alert['message'] }}</span>
 </div>@endif
 <form method="post" name="editForm" id="editForm" enctype="multipart/form-data">
+    @include('partials.csrf')
     <div data-pressdo-loginform class="g comment">
         <label class="comment" for="logInput">{{ $lang['editor']['summary'] }}</label>
         <input data-pressdo-edit-summary type="text" name="log" id="logInput">

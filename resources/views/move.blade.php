@@ -7,6 +7,7 @@
     <span>{{ $alert['message'] }}</span>
 </div>@endif
 <form method="post" name="editForm" id="editForm" enctype="multipart/form-data">
+    @include('partials.csrf')
     <input type="hidden" name="token" value="{{ $wiki['page']['data']['token'] }}">
     <div data-pressdo-loginform class="c comment">
         <label class="comment" for="newTitle">{{ $lang['title_to_move'] }}</label>

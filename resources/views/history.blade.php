@@ -77,11 +77,7 @@
                 @endphp
             @endif
 
-            @if ($wiki['page']['data']['can_mark_troll'])
-                @php
-                    array_push($menu, '<a href="/mark_troll/'.$docPath.'?uuid='.rawurlencode((string) $d['uuid']).'">[A]'.($d['marked_troll'] ? $lang['history']['unmark_troll_revision'] : $lang['history']['mark_troll_revision']).'</a>');
-                @endphp
-            @endif
+
 
             @if ($wiki['page']['data']['can_hide_log'] && !empty($d['log']) && !$d['marked_troll'])
                 @php
@@ -96,7 +92,11 @@
             @endif
 
             <li @class(['history-troll' => $d['marked_troll'], 'history'])>{!! ViewTime::absolute((int) ($d['date'] ?? 0)) !!}
-                <span class="history-btns">({!! implode(' | ', $menu) !!})
+                <span class="history-btns">({!! implode(' | ', $menu) !!}
+                    @if ($data['can_mark_troll'])
+                        | <button type="submit" name="uuid" value="{{ $d['uuid'] }}" form="mark-troll-form">[A]{{ $lang['history'][$d['marked_troll'] ? 'unmark_troll_revision' : 'mark_troll_revision'] }}</button>
+                    @endif
+                )
                 </span>
                 <span><input type="radio" name="olduuid" value="{{ $d['uuid'] }}" v="inline-block"><input type="radio" name="uuid" value="{{ $d['uuid'] }}" v="inline-block"></span>
                 <i>
@@ -138,4 +138,9 @@
     </ul>
     @include('partials.pagination', ['phref' => $phref, 'nhref' => $nhref])
 </form>
+@if ($data['can_mark_troll'])
+    <form method="post" action="/mark_troll/{{ $docPath }}" id="mark-troll-form">
+        @include('partials.csrf')
+    </form>
+@endif
 @include('partials.userpopper', ['idset' => $idset])

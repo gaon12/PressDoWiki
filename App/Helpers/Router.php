@@ -67,7 +67,7 @@ class Router
         } else {
             if ($this->getUriSegment(2) == 'star' || $this->getUriSegment(2) == 'unstar') {
                 $uri_data->menu = $this->getUriSegment(2);
-                $uri_data->title = $this->getUriSegmentFrom(3);
+                $uri_data->title = rawurldecode($this->getUriSegmentFrom(3));
             } else {
                 $uri_data->menu = $this->getUriSegmentFrom(2);
                 $uri_data->title = '';

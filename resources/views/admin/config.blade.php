@@ -15,6 +15,7 @@
 @endif
 
 <form method="post">
+    @include('partials.csrf')
     <input type="hidden" name="token" value="{{ $settingsPage['token'] }}">
 
     @foreach ($settingsPage['sections'] as $section => $settings)

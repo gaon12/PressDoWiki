@@ -30,6 +30,7 @@
 			"php tests/ViewSkinTest.php",
 			"php tests/Http/LocalRedirectTest.php",
 			"php tests/Http/CsrfTokenManagerTest.php",
+			"php tests/Http/BrowserMutationBoundaryTest.php",
 			"php tests/Http/WikiUrlTest.php",
 			"php tests/Http/PreviewInputTest.php",
 			"php tests/MarkHandlerTest.php",

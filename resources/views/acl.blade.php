@@ -3,6 +3,7 @@
 @endphp
 
 <form method="POST" id="rf" action="{{ ($request_uri ?? '') }}">
+    @include('partials.csrf')
     <input type="hidden" id="rft" name="target" value>
 </form>
 @php
@@ -51,6 +52,7 @@
             </table>
         </div>
         @if ($wiki['page']['data'][$a.'ACL']['editable'] === true)<form data-pressdo-acl-change method="post">
+            @include('partials.csrf')
             <input type="hidden" name="acl_target" value="{{ $a.'.'.$A }}">
             <div data-pressdo-acl-change class="g">
                 <label data-pressdo-acl-change>Condition</label>

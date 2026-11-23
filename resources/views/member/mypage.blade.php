@@ -7,6 +7,7 @@
     <span>{{ $lang['msg'][$wiki['page']['data']['error']] ?? $wiki['page']['data']['error'] }}</span>
 </div>@endif
 <form id="mypage" method="post">
+    @include('partials.csrf')
     <div class="bottom-space">
         <label for="usernameInput">{{ $lang['auth']['username'] }}</label>
         <p>{{ $wiki['session']['member']['username'] }}</p>

@@ -24,6 +24,7 @@
         </div>
     </form>
     @if ($username !== '' && empty($data['errbox']))<form method="POST">
+        @include('partials.csrf')
         <h3>{{ $username }} {{ $lang['login_history'] }}</h3><br>
         <p>{{ $lang['auth']['last_login_ua'].' : '.$wiki['page']['data']['UA'] }}</p><br>
         <p>{{ $lang['auth']['email'].' : '.$wiki['page']['data']['email'] }}</p>

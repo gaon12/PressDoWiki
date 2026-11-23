@@ -51,6 +51,12 @@ function submitWebAuthnChallenge(challenge, passkeyName) {
     challengeInput.value = JSON.stringify(challenge);
     form.appendChild(challengeInput);
 
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = '_csrf';
+    csrf.value = document.querySelector('meta[name="csrf-token"]').content;
+    form.appendChild(csrf);
+
     if (passkeyName) {
         form.appendChild(passkeyName.cloneNode(true));
     }

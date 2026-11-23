@@ -357,3 +357,12 @@ html, body, #app, .pressdo-default-skin {
         padding: 1rem .75rem;
     }
 }
+
+
+button.pd-user-link,
+button.pd-tab {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+}

@@ -3,6 +3,7 @@
     <span>{{ $lang['msg'][$wiki['page']['data']['error']] }}</span>
 </div>@endif
 <form class="authform" method="post">
+    @include('partials.csrf')
     <div class="form-sheet">
         <label for="pinInput">PIN</label>
         <input class="textfield" type="text" id="pinInput" name="pin" maxlength="6">

@@ -8,6 +8,7 @@
     <li>{!! $lang['msg']['activate_otp_3'] !!}</li>
 </ol>
 <form class="authform" method="post">
+    @include('partials.csrf')
     <div class="form-sheet">
         <label for="pinInput">PIN</label>
         <input class="textfield" type="text" id="pinInput" name="pin" maxlength="6">

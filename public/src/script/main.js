@@ -224,7 +224,8 @@ if(q('div#r textarea.editor') !== null){
         g('editForm').content.value = x
         const data = new FormData()
         data.append('text', x)
-        data.append('title', a.g(q('div.title h1 a'), 'href').split('/').slice(2).join('/'))
+        data.append('title', g('editForm').dataset.documentTitle)
+        data.append('_csrf', q('meta[name="csrf-token"]').content)
 
         if (previewRequestController !== null) {
             previewRequestController.abort()

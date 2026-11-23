@@ -115,6 +115,9 @@ max, the current test suite, and known dependency advisories.
 `public/skins/<이름>/config.json`으로 등록하세요. 기존 PHP 스킨의
 `public/skins/<이름>/layout.php`도 사용할 수 있습니다. Latte 스킨을 사용하던
 설치에서는 레이아웃을 Blade로 옮기거나 기본 스킨을 선택하세요.
+사용자 정의 스킨의 POST 폼에는 뷰에 전달되는 `$csrfToken`을
+`_csrf` 숨은 필드로 포함하세요. Blade에서는 `@include('partials.csrf')`를
+사용할 수 있습니다.
 
 ### 지원 스킨
  - pressdo (기본 제공)

@@ -23,7 +23,8 @@
     $toolbarinit ??= false;
 @endphp
 <div class="w"></div>
-<form method="post" name="editForm" id="editForm" enctype="multipart/form-data">
+<form method="post" name="editForm" id="editForm" data-document-title="{{ $wiki['page']['title'] }}" enctype="multipart/form-data">
+    @include('partials.csrf')
     @if (!$readonly)<input type="hidden" name="token" value="{{ $wiki['page']['data']['token'] }}">@endif
     <ul class="editor top">
         <li class="editor top">

@@ -3,6 +3,7 @@
 namespace PressDo\App\Core;
 
 use PressDo\App\Helpers\{Config, DefaultConfig, Languages, Namespaces};
+use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Http\Security\SessionLifecycle;
 use PressDo\App\Models\Member;
 use PressDo\App\Services\Mark\MarkHandler;
@@ -30,16 +31,12 @@ class Controller
     {
         $this->request = Request::fromGlobals();
 
-        if (!empty($_SESSION)) {
-            $this->session = $_SESSION;
-        } else {
-            $this->session = [
-                'menus' => [],
-                'member' => null,
-                'ip' => self::getIPAddr(),
-                'ua' => $this->request->serverString('HTTP_USER_AGENT'),
-            ];
-        }
+        $this->session = ($_SESSION ?? []) + [
+            'menus' => [],
+            'member' => null,
+            'ip' => $this->request->serverString('REMOTE_ADDR'),
+            'ua' => $this->request->serverString('HTTP_USER_AGENT'),
+        ];
 
         if (empty($this->session['member'])) {
             $uuid = Member::checkCookie('szczecin', $this->request->cookieString('szczecin'));
@@ -137,6 +134,7 @@ class Controller
             'search_query' => $this->request->queryString('q'),
             'post' => $this->request->postData(),
             'query' => $this->request,
+            'csrfToken' => (new CsrfTokenManager())->issueBrowserToken($this->session),
             'license' => $license,
             'api_config' => $this->api_config,
         ];

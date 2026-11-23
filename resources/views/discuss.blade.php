@@ -91,6 +91,7 @@
         {{ sprintf($lang['msg']['discuss_in_frontpage'], $config['wiki.front_page']) }}
     </div>@endif
     <form method="POST" id="editForm">
+        @include('partials.csrf')
         <div data-pressdo-loginform class="c">
             <label data-pressdo-breakline for="topicInput">{{ $lang['thread']['topic'] }} :</label>
             <input data-pressdo-thread data-pressdo-wideinput type="text" id="topicInput" name="topic">

@@ -3,7 +3,7 @@ namespace PressDo;
 
 use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver,Csp};
 use PressDo\App\Core\{Controller,Request,Response};
-use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Http\Security\{CsrfTokenManager,SessionLifecycle};
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
@@ -16,6 +16,14 @@ $request = Request::fromGlobals();
 date_default_timezone_set(GeoIp::getTimezone($request->serverString('REMOTE_ADDR')) ?? Config::get('wiki.timezone'));
 
 SessionLifecycle::start($request, (string) Config::get('wiki.canonical_url'));
+
+header('Content-Security-Policy: ' . Csp::headerValue());
+if (!in_array($request->method(), ['GET', 'HEAD', 'POST'], true)) {
+    Response::methodNotAllowed('GET', 'HEAD', 'POST');
+}
+if ($request->isMethod('POST') && !(new CsrfTokenManager())->validateBrowserPost($_SESSION, $request)) {
+    Response::text('Forbidden', 403);
+}
 
 $router = new Router();
 $router->handleURI($request->serverString('REQUEST_URI'));
@@ -32,8 +40,6 @@ if (
 
 $wiki = new $pageClassName();
 $wiki->uri_data = $router->uri_data;
-
-header('Content-Security-Policy: '.Csp::headerValue());
 
 // Controller
 $wiki->page = $wiki->makeData();

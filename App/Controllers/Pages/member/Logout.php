@@ -8,8 +8,12 @@ use PressDo\App\Models\Member;
 
 class Logout extends Controller
 {
-    public function makeData(): void
+    public function makeData(): never
     {
+        if (!$this->request->isMethod('POST')) {
+            Response::methodNotAllowed('POST');
+        }
+
         $uuid = $this->session['uuid'] ?? null;
         foreach (['szczecin', 'podgorica'] as $name) {
             if (!$this->request->hasCookie($name)) {
@@ -25,6 +29,6 @@ class Logout extends Controller
         $this->session = [];
         SessionLifecycle::destroy();
 
-        Response::redirect($this->request->queryString('redirect', '/'));
+        Response::redirect($this->request->queryString('redirect', '/'), 303);
     }
 }

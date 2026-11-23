@@ -7,6 +7,7 @@
 @endphp
 {{-- 초기화면 --}}
 @if ($mode === 0)<form class="signup-form authform" method="POST" id="regform" name="regform" action="/member/signup">
+    @include('partials.csrf')
     <div class="form-sheet">
         <textarea class="textfield longtext" readonly value="{{ $config['member.tos'] }}">{{ $config['member.tos'] }}</textarea>
     </div>
@@ -50,6 +51,7 @@
 @if ($mode === 3)<p>{!! sprintf($lang['msg']['welcome'], e($post['username'] ?? '')) !!}</p>@endif
 {{-- 메일인증 완료 --}}
 @if ($mode === 2)<form class="authform" id="signupform" name="signupform" method="POST" action="/member/signup">
+    @include('partials.csrf')
     <div class="form-sheet">
         <label for="emailInput">{{ $lang['auth']['email'] }}</label>
         <input class="textfield" type="text" id="emailInput" name="email" readonly value="{{ $wiki['session']['email'] }}">

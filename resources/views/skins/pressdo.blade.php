@@ -56,7 +56,10 @@
                     @foreach (($wiki['session']['menus'] ?? []) as $menu)
                         <a href="{{ $menu['l'] }}" class="pd-user-link">{{ $menu['label'] ?? $menu['t'] }}</a>
                     @endforeach
-                    <a href="/member/logout" class="pd-user-link">{{ $lang['auth']['logout'] ?? '로그아웃' }}</a>
+                    <form action="/member/logout" method="post">
+                        @include('partials.csrf')
+                        <button class="pd-user-link" type="submit">{{ $lang['auth']['logout'] ?? '로그아웃' }}</button>
+                    </form>
                 @else
                     <a href="/member/login" class="pd-user-link">{{ $lang['page']['login'] ?? '로그인' }}</a>
                     <a href="/member/signup" class="pd-user-link pd-user-link-signup">{{ $lang['page']['signup'] ?? '회원가입' }}</a>
@@ -95,6 +98,15 @@
                             {{ $lang['page']['edit'] ?? '편집' }}
                         </a>
                     </li>
+                    @if ($isLoggedIn && $pageType === 'wiki' && ($wiki['page']['view_name'] ?? null) === 'wiki')
+                        @php($starred = !empty($wiki['page']['data']['starred']))
+                        <li>
+                            <form action="/member/{{ $starred ? 'unstar' : 'star' }}/{{ $encodedTitle }}" method="post">
+                                @include('partials.csrf')
+                                <button class="pd-tab" type="submit">{{ $starred ? '즐겨찾기 해제' : '즐겨찾기' }}</button>
+                            </form>
+                        </li>
+                    @endif
                 </ul>
             </div>
         </nav>

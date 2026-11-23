@@ -57,6 +57,7 @@
     <div class="inset absolute overlay-container">
         <div class="overlay-content">
             <form method="POST" action="{{ $uri_data['path'] }}/close">
+                @include('partials.csrf')
                 <input class="pressdo-form" id="idto_remove" type="hidden" name="id" value>
                 <input class="pressdo-form" type="hidden" name="group" value="{{ $api['currentgroup'] ?? '' }}">
                 <h4>{{ $lang['edit_request']['close'] }}</h4>
@@ -65,10 +66,12 @@
                     <input class="pressdo-form" type="text" name="reason">
                     @if (!empty($err[1]['note']))<p id="erruser" class="errmsg">{{ sprintf($lang['msg']['err_required_input'], 'note') }}</p>@endif
                 </div>
-                <div>
-                    <p>{{ $lang['edit_request']['lock'] }}</p>
-                    <input class="pressdo-form" type="checkbox" name="lock" value="Y">
-                </div>
+                @if ($wiki['page']['data']['can_lock'])
+                    <div>
+                        <p>{{ $lang['edit_request']['lock'] }}</p>
+                        <input class="pressdo-form" type="checkbox" name="lock" value="Y">
+                    </div>
+                @endif
                 <div class="overlay-btns">
                     <button class="pressdo-btn-nonflex btn-lightblue btn-sizeup" type="submit">{{ $lang['btn']['close'] }}</button>
                     <button class="pressdo-btn-nonflex btn-sizeup" id="cancel_btn" type="button">{{ $lang['cancel'] }}</button>
@@ -124,10 +127,12 @@
         @if (($d['status'] == 'close' || $d['status'] == 'locked') && !empty($d['reason']))<p>{{ $lang['edit_request']['reason'] }} : {{ $d['reason'] }}</p>@endif
         <div class="inline-buttonset">
             @if ($d['status'] == 'close' || $d['status'] == 'locked')<form method="post" action="{{ $uri_data['path'] }}/reopen">
+                @include('partials.csrf')
                 <button @disabled(!$wiki['page']['data']['can_reopen']) class="pressdo-btn-nonflex btn-lightgreen btn-sizeup" type="submit">Reopen</button>
             </form>@endif
             @if ($d['status'] == 'open')
                 <form method="post" action="{{ $uri_data['path'] }}/accept">
+                    @include('partials.csrf')
                     <button @disabled(!$wiki['page']['data']['can_accept']) class="pressdo-btn-nonflex btn-lightgreen btn-sizeup" type="submit">Accept</button>
                 </form>
                 <button id="acl_delete" @disabled(!$wiki['page']['data']['can_close']) class="pressdo-btn-nonflex btn-sizeup">Close</button>

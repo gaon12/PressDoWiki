@@ -12,6 +12,7 @@ use PressDo\App\Http\Security\CsrfTokenManager;
 use PressDo\App\Http\Security\EmailVerificationPurpose as Purpose;
 use PressDo\App\Http\Security\PermissionGrantPolicy;
 use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Infrastructure\Database\SchemaMigrator;
 use PressDo\App\Models\EditRequest;
 use PressDo\App\Models\Member;
 
@@ -103,6 +104,12 @@ function createFlowAccount(string $username, string $ip): array
 $suffix = bin2hex(random_bytes(5));
 $ip = '192.0.2.20';
 $actor = createFlowAccount('actor_' . $suffix, $ip);
+$migrations = new SchemaMigrator($db);
+$applied = $migrations->migrate();
+expectDatabaseFlow($applied === [1] || $applied === [], 'The login-limit schema should be applied to an existing database.');
+expectDatabaseFlow($migrations->migrate() === [], 'Re-running migrations must leave the database up to date.');
+expectDatabaseFlow((int) $db->query('SELECT COUNT(*) FROM schema_migrations WHERE version = 1')->fetchColumn() === 1, 'The migration version must be recorded exactly once.');
+expectDatabaseFlow(Member::exist($actor['username']) === $actor, 'The migration must preserve existing members.');
 $target = createFlowAccount('target_' . $suffix, $ip);
 $credentials = Member::checkMember($actor['email'], 'test-start-password');
 expectDatabaseFlow(is_array($credentials) && $credentials['uuid'] === $actor['uuid'], 'Password authentication must find the correct account.');

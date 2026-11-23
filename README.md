@@ -87,6 +87,20 @@ composer install
 
 If the local PHP installation does not have zip support, install the PHP zip extension or an unzip/7z command line tool so Composer can extract packages.
 
+### Database Upgrades
+
+Back up the configured database and run the versioned migrations once from the
+CLI before serving the new release. New installations run the same command
+after importing their schema.
+
+```sh
+php tools/migrate.php
+```
+
+Use a database account with permission to create tables for the upgrade. Run a
+single migration process for each database. An interrupted run can be retried.
+The installation SQL files reset tables and are for new databases.
+
 ### Run Locally
 
 Point your web server document root at `public/`. An nginx example is available at `templates/server.nginx`.

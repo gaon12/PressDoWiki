@@ -106,6 +106,9 @@ has no enforceable seams between them.
   creation path now records the initial delta against the source revision.
   The stock MariaDB CI image uses InnoDB for the search table, outside the
   coverage of this flow.
+  New schema changes use `php tools/migrate.php`. CI creates an account on
+  the installation schema before upgrading, then checks that the account
+  survives and re-running the migrator leaves one record per version.
 
 Performance optimization before these seams exist would mostly be guesswork.
 

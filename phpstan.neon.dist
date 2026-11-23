@@ -26,6 +26,7 @@ parameters:
         - App/Helpers/SqlDialect.php
         - App/Http
         - App/Infrastructure/Files
+        - App/Infrastructure/Database
         - App/Infrastructure/Rendering
         - App/Services/Mark/MarkHandler.php
         - App/Services/Mark/Markdown/Loader.php

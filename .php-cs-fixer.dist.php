@@ -24,6 +24,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/App/Helpers',
         __DIR__.'/App/Http',
         __DIR__.'/App/Infrastructure/Files',
+        __DIR__.'/App/Infrastructure/Database',
         __DIR__.'/App/Infrastructure/Rendering',
         __DIR__.'/App/Shared/Rendering',
         __DIR__.'/App/Services/Mark/NamuMark',
@@ -43,6 +44,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__.'/tests/Compliance',
     ])
     ->append([
+        __DIR__.'/tools/migrate.php',
         __DIR__.'/App/Controllers/Pages/admin/Config.php',
         __DIR__.'/App/Controllers/Pages/admin/StorageIntegrity.php',
         __DIR__.'/App/Controllers/Pages/api/Preview.php',

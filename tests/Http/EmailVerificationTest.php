@@ -52,7 +52,13 @@ expectEmailVerification((int) $database->query('SELECT COUNT(*) FROM document')-
 
 $member = Member::exist(email: $email);
 expectEmailVerification(is_array($member), 'The registered account should be found.');
+$credentials = Member::checkMember($email, 'test-password!');
+expectEmailVerification(
+    $credentials !== false && Member::sessionCredential($member['uuid']) === $credentials['credential'],
+    'The session credential must correspond to the password that was verified.',
+);
 $remember = Member::saveCookies($member['uuid'], 'szczecin', 600);
+expectEmailVerification(Member::rememberCookieIdentity($remember) === $credentials, 'Remember-me should capture the current credential.');
 $trusted = Member::saveCookies($member['uuid'], 'podgorica', 600);
 $reset = Member::issueEmailCode($email, $ip, Purpose::PasswordReset);
 expectEmailVerification(is_string($reset), 'A reset request should issue a token.');
@@ -60,10 +66,20 @@ expectEmailVerification($service->verify($reset, Purpose::Signup, $ip) === null,
 expectEmailVerification(Member::completePasswordReset($reset, 'new-password!'), 'A current reset token should change the password.');
 expectEmailVerification(!Member::completePasswordReset($reset, 'replay-password!'), 'A password reset token may only work once.');
 expectEmailVerification(Member::checkMember($email, 'test-password!') === false, 'The old password must no longer work.');
-expectEmailVerification(Member::checkMember($email, 'new-password!') !== false, 'The new password should authenticate.');
+$newCredentials = Member::checkMember($email, 'new-password!');
+expectEmailVerification($newCredentials !== false && $newCredentials !== $credentials, 'The new password should have a fresh credential.');
 expectEmailVerification(
-    Member::checkCookie('szczecin', $remember) === null && Member::checkCookie('podgorica', $trusted) === null,
+    Member::rememberCookieIdentity($remember) === null && Member::checkCookie('podgorica', $trusted) === null,
     'Password reset must revoke remember-me and trusted-device tokens.',
+);
+expectEmailVerification(
+    Member::login($member['uuid'], $credentials['credential'], $ip, 'fixture', ['szczecin' => 600]) === null
+        && (int) $database->query('SELECT COUNT(*) FROM cookies')->fetchColumn() === 0,
+    'An old credential must neither finish login nor issue new cookies.',
+);
+expectEmailVerification(
+    Member::login($member['uuid'], $newCredentials['credential'], $ip, 'fixture') !== null,
+    'The current credential should complete login.',
 );
 
 $expired = Member::issueEmailCode($email, $ip, Purpose::PasswordReset);

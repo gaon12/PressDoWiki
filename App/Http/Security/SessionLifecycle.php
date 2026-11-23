@@ -42,12 +42,44 @@ final class SessionLifecycle
      */
     public static function authenticate(array $session, array $identity): array
     {
-        // Rotate before persisting the identity, while the previous ID still belongs to a guest.
+        self::rotate();
+
+        return $identity + array_intersect_key($session, ['ip' => true, 'ua' => true]);
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     * @param callable(string): ?string $lookupCredential
+     */
+    public static function discardStaleIdentity(array &$session, callable $lookupCredential): void
+    {
+        if (empty($session['member'])) {
+            return;
+        }
+
+        $uuid = $session['uuid'] ?? null;
+        $credential = $session['credential'] ?? null;
+        if (is_string($uuid) && is_string($credential)) {
+            $current = $lookupCredential($uuid);
+            if ($current !== null && hash_equals($current, $credential)) {
+                return;
+            }
+        }
+
+        $session = [];
+        self::rotate();
+    }
+
+    public static function credential(string $passwordHash): string
+    {
+        return hash('sha256', $passwordHash);
+    }
+
+    private static function rotate(): void
+    {
         if (!session_regenerate_id(true)) {
             throw new RuntimeException('Unable to rotate the session ID.');
         }
-
-        return $identity + array_intersect_key($session, ['ip' => true, 'ua' => true]);
     }
 
     public static function destroy(): void

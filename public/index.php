@@ -4,6 +4,7 @@ namespace PressDo;
 use PressDo\App\Helpers\{Config,Router,GeoIp,RouteControllerResolver,Csp};
 use PressDo\App\Core\{Controller,Request,Response};
 use PressDo\App\Http\Security\{CsrfTokenManager,SessionLifecycle};
+use PressDo\App\Models\Member;
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
@@ -16,6 +17,7 @@ $request = Request::fromGlobals();
 date_default_timezone_set(GeoIp::getTimezone($request->serverString('REMOTE_ADDR')) ?? Config::get('wiki.timezone'));
 
 SessionLifecycle::start($request, (string) Config::get('wiki.canonical_url'));
+SessionLifecycle::discardStaleIdentity($_SESSION, Member::sessionCredential(...));
 
 header('Content-Security-Policy: ' . Csp::headerValue());
 header('X-Content-Type-Options: nosniff');

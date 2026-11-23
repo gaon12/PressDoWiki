@@ -71,8 +71,13 @@ has no enforceable seams between them.
   hides defects and risks returning partial responses instead of recording a
   controlled failure.
 - Authentication state is copied between a controller property and `$_SESSION`.
-  There is no single place that guarantees session-ID rotation after login,
-  cookie policy, or logout invalidation.
+  `SessionLifecycle` now sets cookie policy, rotates the ID after login, and
+  clears the session on logout. Before checking CSRF, the front controller
+  compares the authenticated session's credential with the current account
+  credential. The session stores a SHA-256 digest of the password verifier.
+  Password reset revokes sessions and pending login challenges on their next
+  request, and deletes persistent cookies in the reset transaction. This
+  rollout uses the existing database schema.
 
 ### Performance work has no reliable measurement point
 

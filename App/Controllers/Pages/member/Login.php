@@ -31,7 +31,10 @@ class Login extends Controller
         $pendingUser = $this->session['temp']['uuid'] ?? null;
         if (is_string($pendingUser)) {
             $now = time();
-            if (!LoginChallenge::canAttempt($this->session, $now)) {
+            $pendingCredential = $this->session['temp']['credential'] ?? null;
+            $currentCredential = is_string($pendingCredential) ? Member::sessionCredential($pendingUser) : null;
+            if ($currentCredential === null || !hash_equals($currentCredential, $pendingCredential)
+                || !LoginChallenge::canAttempt($this->session, $now)) {
                 $this->clearSecondFactor();
                 $page['data']['error'] = 'err_2fa_expired';
                 return $page;
@@ -48,6 +51,8 @@ class Login extends Controller
 
                 if (!isset($page['data']['error'])) {
                     $this->finishLogin(true);
+                    $page['data']['error'] = 'err_2fa_expired';
+                    return $page;
                 }
                 if (!LoginChallenge::recordFailure($this->session, $now)) {
                     $this->clearSecondFactor();
@@ -77,10 +82,12 @@ class Login extends Controller
 
         $this->clearSecondFactor();
         $uuid = $credentials['uuid'];
-        $this->session['temp'] = ['uuid' => $uuid];
+        $this->session['temp'] = $credentials;
         $this->session['szczecin'] = $this->request->hasPost('autologin');
         if (Member::checkCookie('podgorica', $this->request->cookieString('podgorica'), $uuid) !== null) {
             $this->finishLogin(false);
+            $page['data']['error'] = 'err_invalid_member';
+            return $page;
         }
 
         LoginChallenge::begin($this->session, time());
@@ -241,31 +248,32 @@ class Login extends Controller
         }
     }
 
-    private function finishLogin(bool $verifiedSecondFactor): never
+    private function finishLogin(bool $verifiedSecondFactor): void
     {
         $remember = ($this->session['szczecin'] ?? false) === true;
         $trust = $verifiedSecondFactor && $this->request->hasPost('trust');
-        $uuid = $this->session['temp']['uuid'];
-        $member = Member::login($uuid, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'));
-        $identity = self::getMemberData($uuid, $member['email'], $member['username'], $member['skin']);
-        $this->session = SessionLifecycle::authenticate($this->session, $identity);
-
+        $lifetimes = [];
         if ($remember) {
-            setcookie(
-                'szczecin',
-                Member::saveCookies($this->session['uuid'], 'szczecin', 31536000),
-                self::getCookieOptions(31536000)
-            );
+            $lifetimes['szczecin'] = 31_536_000;
         }
         if ($trust) {
-            setcookie(
-                'podgorica',
-                Member::saveCookies($this->session['uuid'], 'podgorica', 34560000),
-                self::getCookieOptions(34560000)
-            );
+            $lifetimes['podgorica'] = 34_560_000;
         }
-        
-        // 로그인 성공
+
+        $uuid = $this->session['temp']['uuid'];
+        $credential = $this->session['temp']['credential'];
+        $member = Member::login($uuid, $credential, $this->session['ip'], $this->request->serverString('HTTP_USER_AGENT'), $lifetimes);
+        if ($member === null) {
+            $this->clearSecondFactor();
+            return;
+        }
+
+        $identity = self::getMemberData($uuid, $member['email'], $member['username'], $member['skin']);
+        $this->session = SessionLifecycle::authenticate($this->session, $identity + ['credential' => $credential]);
+        foreach ($member['cookies'] as $name => $value) {
+            setcookie($name, $value, self::getCookieOptions($lifetimes[$name]));
+        }
+
         $_SESSION = $this->session;
         Response::redirect($this->request->queryString('redirect', '/'));
     }

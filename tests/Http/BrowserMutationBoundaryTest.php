@@ -7,8 +7,10 @@ use PressDo\App\Core\Request;
 use PressDo\App\Helpers\Database;
 use PressDo\App\Helpers\DefaultConfig;
 use PressDo\App\Http\Security\CsrfTokenManager;
+use PressDo\App\Http\Security\EmailVerificationPurpose;
 use PressDo\App\Http\Security\LoginChallenge;
 use PressDo\App\Http\Security\SessionLifecycle;
+use PressDo\App\Models\Member;
 
 $root = dirname(__DIR__, 2);
 require $root . '/vendor/autoload.php';
@@ -38,17 +40,35 @@ if (($argv[1] ?? null) === '--fixture') {
         $_POST['_csrf'] = $token;
     }
 
-    if (str_starts_with($tokenMode, 'factor-')) {
+    if (str_starts_with($tokenMode, 'factor-') || str_starts_with($tokenMode, 'session-')) {
         $uuid = '00000000-0000-4000-8000-000000000001';
-        $database->prepare('INSERT INTO member (uuid, username, email) VALUES (?, ?, ?)')
-            ->execute([Model::uuid2bin($uuid), 'fixture', 'fixture@example.test']);
-        $_SESSION['temp'] = ['uuid' => $uuid];
-        $_SESSION['do2fa'] = 'email';
-        $_SESSION['pin'] = '123456';
-        $_SESSION['factor_view'] = ['force_2fa' => true, 'use_totp' => false, 'use_webauthn' => false, 'otp_email' => 'fixture@example.test'];
-        LoginChallenge::begin($_SESSION, $tokenMode === 'factor-expired' ? time() - 601 : time());
+        $email = 'fixture@example.test';
+        $passwordHash = password_hash('fixture-password', PASSWORD_BCRYPT, ['cost' => 4]);
+        $database->prepare('INSERT INTO member (uuid, username, email, password) VALUES (?, ?, ?, ?)')
+            ->execute([Model::uuid2bin($uuid), 'fixture', $email, $passwordHash]);
+        $credential = SessionLifecycle::credential($passwordHash);
+
+        if (str_starts_with($tokenMode, 'factor-')) {
+            $_SESSION['temp'] = ['uuid' => $uuid, 'credential' => $credential];
+            $_SESSION['do2fa'] = 'email';
+            $_SESSION['pin'] = '123456';
+            $_SESSION['factor_view'] = ['force_2fa' => true, 'use_totp' => false, 'use_webauthn' => false, 'otp_email' => $email];
+            LoginChallenge::begin($_SESSION, $tokenMode === 'factor-expired' ? time() - 601 : time());
+            $_POST['pin'] = '123456';
+        } else {
+            $_SESSION['uuid'] = $uuid;
+            $_SESSION['member'] = ['username' => 'fixture'];
+            if ($tokenMode !== 'session-legacy') {
+                $_SESSION['credential'] = $credential;
+            }
+        }
+        if (str_ends_with($tokenMode, '-reset')) {
+            $reset = Member::issueEmailCode($email, '127.0.0.1', EmailVerificationPurpose::PasswordReset);
+            if ($reset === null || !Member::completePasswordReset($reset, 'new-fixture-password')) {
+                throw new RuntimeException('Unable to reset the fixture member password.');
+            }
+        }
         $_POST['_csrf'] = $token;
-        $_POST['pin'] = '123456';
     }
 
     register_shutdown_function(static function (): void {
@@ -93,6 +113,9 @@ foreach ([
     ['/api/preview', 'POST', 'absent', 403],
     ['/admin/grant', 'POST', 'absent', 403],
     ['/member/login', 'PUT', 'absent', 405],
+    ['/api/preview', 'POST', 'session-valid', 200],
+    ['/api/preview', 'POST', 'session-reset', 403],
+    ['/api/preview', 'POST', 'session-legacy', 403],
 ] as [$path, $method, $tokenMode, $expected]) {
     [, $status] = browserBoundaryRequest($path, $method, $tokenMode);
     if ($status !== $expected) {
@@ -115,9 +138,11 @@ if ($status !== 302) {
     throw new RuntimeException('A current second factor must complete login.');
 }
 
-[$expired, $status] = browserBoundaryRequest('/member/login', 'POST', 'factor-expired');
-if ($status !== 200 || !str_contains($expired, '시도 횟수를 초과했습니다')) {
-    throw new RuntimeException('An expired second factor must restart login.');
+foreach (['factor-expired', 'factor-reset'] as $factor) {
+    [$expired, $status] = browserBoundaryRequest('/member/login', 'POST', $factor);
+    if ($status !== 200 || !str_contains($expired, '시도 횟수를 초과했습니다')) {
+        throw new RuntimeException('An expired or revoked second factor must restart login.');
+    }
 }
 
 echo 'Browser mutation boundary tests passed.' . PHP_EOL;

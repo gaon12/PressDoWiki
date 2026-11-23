@@ -5,7 +5,7 @@ use \PDO as PDO;
 use \PDOException as PDOException;
 use \ErrorException as ErrorException;
 use PressDo\App\Helpers\SqlDialect;
-use PressDo\App\Http\Security\{EmailVerification, EmailVerificationPurpose};
+use PressDo\App\Http\Security\{EmailVerification, EmailVerificationPurpose, SessionLifecycle};
 
 class Member extends \PressDo\App\Core\Model
 {
@@ -13,14 +13,14 @@ class Member extends \PressDo\App\Core\Model
      * check member info
      * @param string $id        username/email
      * @param string $pw      userpw
-     * @return array|bool        false or array(username, uuid, password)
+     * @return array{uuid: string, credential: string}|false
      */
-    public static function checkMember(string $id, string $pw): array|bool
+    public static function checkMember(string $id, string $pw): array|false
     {
         $db = self::db();
         try {
-            $d = $db->prepare("SELECT `username`, `password`, `uuid` FROM `member` WHERE `username`=:id OR email=:id");
-            $d->execute(['id' => $id]);
+            $d = $db->prepare('SELECT password, ' . SqlDialect::binaryHex('uuid') . ' AS uuid_hex FROM member WHERE username = ? OR email = ?');
+            $d->execute([$id, $id]);
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage().': 유저 조회 중 오류 발생');
         }
@@ -31,45 +31,68 @@ class Member extends \PressDo\App\Core\Model
         if ($user === false || !is_string($user['password']) || !password_verify($pw, $user['password']))
             return false;
         
-        $user['uuid'] = self::bin2uuid($user['uuid']);
-        return $user;
+        return [
+            'uuid' => self::bin2uuid(hex2bin($user['uuid_hex'])),
+            'credential' => SessionLifecycle::credential($user['password']),
+        ];
+    }
+
+    public static function sessionCredential(string $uuid): ?string
+    {
+        $d = self::db()->prepare('SELECT password FROM member WHERE uuid = ? AND username IS NOT NULL');
+        $d->bindValue(1, self::uuid2bin($uuid), self::binaryParameterType());
+        $d->execute();
+        $hash = $d->fetchColumn();
+
+        return is_string($hash) ? SessionLifecycle::credential($hash) : null;
     }
 
     /**
-     * login user
-     * @param string $uuid        uuid
-     * @param string $ip       user IP
-     * @param string $ua       user-agent
-     * @return array|bool        false or userdata
+     * @param array<string, int> $cookieLifetimes
+     * @return array{username: string, email: string, skin: ?string, cookies: array<string, string>}|null
      */
-    public static function login(string $uuid, string $ip, string $ua): array
+    public static function login(string $uuid, string $credential, string $ip, string $ua, array $cookieLifetimes = []): ?array
     {
         $db = self::db();
-        $uuid = self::uuid2bin($uuid);
+        $member = self::uuid2bin($uuid);
+        $db->beginTransaction();
+
         try {
-            $d = $db->prepare("SELECT `username`, `skin`, `email` FROM `member` WHERE `uuid`=?");
-            $d->execute([$uuid]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 유저 조회 중 오류 발생');
+            // Share the account lock with password reset before issuing persistent cookies.
+            $lock = SqlDialect::isSqlite() ? '' : ' FOR UPDATE';
+            $d = $db->prepare('SELECT username, skin, email, password FROM member WHERE uuid = ? AND username IS NOT NULL' . $lock);
+            $d->bindValue(1, $member, self::binaryParameterType());
+            $d->execute();
+            $user = $d->fetch(PDO::FETCH_ASSOC);
+            if (!is_string($user['password'] ?? null) || !hash_equals(SessionLifecycle::credential($user['password']), $credential)) {
+                $db->rollBack();
+                return null;
+            }
+
+            $d = $db->prepare('INSERT INTO login_history (uuid, ip) VALUES (?, ?)');
+            $d->bindValue(1, $member, self::binaryParameterType());
+            $d->bindValue(2, $ip);
+            $d->execute();
+
+            $d = $db->prepare('UPDATE member SET last_login_ua = ? WHERE uuid = ?');
+            $d->bindValue(1, $ua);
+            $d->bindValue(2, $member, self::binaryParameterType());
+            $d->execute();
+
+            $cookies = [];
+            foreach ($cookieLifetimes as $name => $lifetime) {
+                $cookies[$name] = self::saveCookies($uuid, $name, $lifetime);
+            }
+
+            $db->commit();
+
+            return ['username' => $user['username'], 'email' => $user['email'], 'skin' => $user['skin'], 'cookies' => $cookies];
+        } catch (\Throwable $error) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $error;
         }
-        
-        $user = $d->fetch(PDO::FETCH_ASSOC);
-        
-        try {
-            $d = $db->prepare("INSERT INTO `login_history`(uuid,ip) VALUES(?,?)");
-            $d->execute([$uuid, $ip]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 로그인 기록 중 오류 발생');
-        }
-        
-        try {
-            $d = $db->prepare("UPDATE `member` SET `last_login_ua`=? WHERE `uuid`=?");
-            $d->execute([$ua, $uuid]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': 로그인 처리 중 오류 발생');
-        }
-        
-        return $user;
     }
 
     /**
@@ -379,8 +402,39 @@ class Member extends \PressDo\App\Core\Model
         $token = random_bytes(16);
 
         $d = $db->prepare(SqlDialect::normalizeIdentifiers("INSERT INTO cookies (`user`, `name`, `value`, expiry) VALUES (?,?,?,?)"));
-        $d->execute([$exec, $name, $token, time() + $length]);
+        $d->bindValue(1, $exec, self::binaryParameterType());
+        $d->bindValue(2, $name);
+        $d->bindValue(3, $token, self::binaryParameterType());
+        $d->bindValue(4, time() + $length, PDO::PARAM_INT);
+        $d->execute();
         return bin2hex($token);
+    }
+
+    /** @return array{uuid: string, credential: string}|null */
+    public static function rememberCookieIdentity(string $value): ?array
+    {
+        $token = self::decodeCookie($value);
+        if ($token === null) {
+            return null;
+        }
+
+        $uuid = SqlDialect::binaryHex('member.uuid');
+        $d = self::db()->prepare(SqlDialect::normalizeIdentifiers(
+            "SELECT $uuid AS uuid_hex, member.password FROM cookies JOIN member ON member.uuid = cookies.`user`
+            WHERE cookies.name = 'szczecin' AND cookies.value = ? AND cookies.expiry > ? AND member.username IS NOT NULL"
+        ));
+        $d->bindValue(1, $token, self::binaryParameterType());
+        $d->bindValue(2, time(), PDO::PARAM_INT);
+        $d->execute();
+        $user = $d->fetch(PDO::FETCH_ASSOC);
+        if (!is_string($user['password'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'uuid' => self::bin2uuid(hex2bin($user['uuid_hex'])),
+            'credential' => SessionLifecycle::credential($user['password']),
+        ];
     }
 
     public static function checkCookie(string $name, string $value, ?string $expectedUser = null): ?string
@@ -391,16 +445,20 @@ class Member extends \PressDo\App\Core\Model
         }
 
         $db = self::db();
+        $userHex = SqlDialect::binaryHex('`user`');
         $d = $db->prepare(SqlDialect::normalizeIdentifiers(
-            'SELECT `user` FROM cookies WHERE `name` = ? AND `value` = ? AND expiry > ?'
+            "SELECT $userHex FROM cookies WHERE `name` = ? AND `value` = ? AND expiry > ?"
         ));
-        $d->execute([$name, $token, time()]);
+        $d->bindValue(1, $name);
+        $d->bindValue(2, $token, self::binaryParameterType());
+        $d->bindValue(3, time(), PDO::PARAM_INT);
+        $d->execute();
         $user = $d->fetchColumn();
         if (!is_string($user)) {
             return null;
         }
 
-        $uuid = self::bin2uuid($user);
+        $uuid = self::bin2uuid(hex2bin($user));
 
         return $expectedUser === null || $uuid === $expectedUser ? $uuid : null;
     }
@@ -416,7 +474,16 @@ class Member extends \PressDo\App\Core\Model
         $d = $db->prepare(SqlDialect::normalizeIdentifiers(
             'DELETE FROM cookies WHERE `user` = ? AND `name` = ? AND `value` = ?'
         ));
-        $d->execute([self::uuid2bin($uuid), $name, $token]);
+        $d->bindValue(1, self::uuid2bin($uuid), self::binaryParameterType());
+        $d->bindValue(2, $name);
+        $d->bindValue(3, $token, self::binaryParameterType());
+        $d->execute();
+    }
+
+    private static function binaryParameterType(): int
+    {
+        // Existing SQLite schemas may hold identifiers written as TEXT parameters.
+        return SqlDialect::isPostgresql() ? PDO::PARAM_LOB : PDO::PARAM_STR;
     }
 
     private static function decodeCookie(string $value): ?string

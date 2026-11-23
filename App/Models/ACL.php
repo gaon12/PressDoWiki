@@ -166,11 +166,11 @@ class ACL extends \PressDo\App\Core\Model
     /**
      * Get valid ACL settings of document.
      * 
-     * @param int $uuid        ID of document
-     * @param string $access    type of action
+     * @param string $uuid     ID of document
+     * @param ?string $access  type of action
      * @return array ACL set of document
      */
-    public static function fetchDocACL(string $uuid, string $access=null): array
+    public static function fetchDocACL(string $uuid, ?string $access = null): array
     {
         $db = self::db();
         $uuid = self::uuid2bin($uuid);
@@ -205,10 +205,10 @@ class ACL extends \PressDo\App\Core\Model
      * Get valid ACL settings of namespace.
      * 
      * @param string $rawns     target namespace
-     * @param string $access    type of action
+     * @param ?string $access   type of action
      * @return array ACL set of namespace
      */
-    public static function fetchNSACL(string $rawns, string $access=null): array
+    public static function fetchNSACL(string $rawns, ?string $access = null): array
     {
         $db = self::db();
         try {

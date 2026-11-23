@@ -119,6 +119,12 @@ max, the current test suite, and known dependency advisories.
 `_csrf` 숨은 필드로 포함하세요. Blade에서는 `@include('partials.csrf')`를
 사용할 수 있습니다.
 
+### 이메일 인증
+
+회원가입 링크는 발급 요청과 같은 IP에서 24시간 동안 사용할 수 있습니다.
+비밀번호 재설정 링크는 30분 동안 사용할 수 있습니다. 두 링크는 각각 성공한
+요청에서 한 번만 사용되며, 이전 형식의 링크는 새로 발급받아야 합니다.
+
 ### 지원 스킨
  - pressdo (기본 제공)
  - ~~senkawa~~ (저작권 문제로 배포하지 않습니다.)

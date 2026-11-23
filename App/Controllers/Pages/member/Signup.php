@@ -1,113 +1,119 @@
 <?php
+
 namespace PressDo\App\Controllers\Pages\Member;
 
+use PressDo\App\Core\{Controller, Response};
+use PressDo\App\Helpers\{Config, Languages};
+use PressDo\App\Http\Security\EmailVerificationPurpose;
 use PressDo\App\Models\Member;
-use PressDo\App\Core\Controller;
-use PressDo\App\Helpers\{Languages,Config};
 
 class Signup extends Controller
 {
+    private const SESSION_KEY = 'signup_code';
+
     public function makeData(): array
     {
-        if(!empty($this->session['member']))
-            Header('Location: /');
+        header('Referrer-Policy: no-referrer');
+        if (!empty($this->session['member'])) {
+            Response::redirect('/');
+        }
 
-        $redirect = $this->request->queryOptionalString('redirect');
         $page = [
             'view_name' => 'signup',
-            'title' => Languages::get('page')['signup'],
-            'data' => [
-                'error' => null,
-                'step' => 0,
-                'redirect' => $redirect === null ? null : base64_decode($redirect, true)
-            ],
-            'menus' => [],
-            'customData' => []
+            'title' => Languages::get('page', 'signup'),
+            'data' => ['error' => null, 'step' => 0],
         ];
-
-        if (isset($_POST['email']) && empty($_POST['username'])) {
-            // send email
-            $host = substr($_POST['email'],strrpos($_POST['email'], '@') + 1);
-
-            $weh = Config::get('member.whitelist_email_host');
-            if (is_string($weh) && $weh == $host || is_array($weh) && in_array($host, $weh)) {
-                if (!self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null)) {
-                    $page['data']['error'] = 'captcha_failed';
-                    return $page;
-                }
-                $lang = Languages::get('mail');
-                $content = $lang['greeting'].$lang['signup'];
-                
-                if (Member::exist(email: $_POST['email']) !== false) {
-                    $duplicatesignup = true;
-                    $content .= '<br>'.$lang['signup_duplicate']
-                        .'<br><br>'.$lang['request_ip'];
-                } else {
-                    $content .= '<br>'.$lang['signup_success']
-                        .'<br>'.$lang['request_ip'];
-                }
-
-                $update = Member::chkEmailInput($_POST['email']);
-                // already sent (in 24h)
-                if (is_string($update))
-                    $page['data']['error'] = $update;
-                else {
-                    if (!$duplicatesignup)
-                        $code = Member::regCodeAdd($_POST['email'], $this->session['ip']);
-                    $body = sprintf($content, Config::get('wiki.site_name'), Config::get('wiki.canonical_url').'/member/signup?x='.$code, $this->session['ip']);
-
-                    $send = self::sendMail($_POST['email'], sprintf($lang['signup_title'], Config::get('wiki.site_name')) ,$body);
-                    $page['data']['step'] = 1;
-
-                    // error in mailserver
-                    if(!$send)
-                        $page['data']['error'] = 'err_mail_not_send';
-                }
-            } else {
-                $page['data']['error'] = 'err_mail_whitelist';
-            }
-        } elseif (!empty($_GET['x']) && empty($_POST['username']) ){
-            // check email
-            if ($email = Member::regCodeCheck($_GET['x'], $this->session['ip'], true)) {
-                if ($email == 'err_ip_differs') {
-                    $page = [
-                        'view_name' => 'error',
-                        'title' => Languages::get('page')['error'],
-                        'data' => [
-                            'code' => 'err_ip_differs',
-                            'errbox' => false
-                        ]
-                    ];
-                    return $page;
-                }
-                $this->session['email'] = $email;
-                $page['data']['step'] = 2;
-            } else {
-                $page = [
-                    'view_name' => 'error',
-                    'title' => Languages::get('page')['error'],
-                    'data' => [
-                        'code' => 'err_invalid_code',
-                        'errbox' => false
-                    ]
-                ];
+        $purpose = EmailVerificationPurpose::Signup;
+        $ip = $this->request->serverString('REMOTE_ADDR');
+        $code = $this->request->queryOptionalString('x');
+        if ($code !== null && $this->request->isMethod('GET')) {
+            unset($this->session[self::SESSION_KEY]);
+            if (Member::verifyEmailCode($code, $purpose, $ip) === null) {
+                unset($_SESSION[self::SESSION_KEY]);
+                $page['data']['error'] = 'err_invalid_code';
                 return $page;
             }
-        } elseif (!empty($_POST['username']) && !empty($_POST['password']) && !empty($this->session['email'])){
-            // end register
-            $page['data']['step'] = 2;
-            if(!preg_match('/^[0-9A-Za-z_]+$/', $_POST['username'])){
-                $page['data']['error'] = 'err_invalid_username';
-            }elseif($_POST['password'] !== $_POST['password2']){
-                $page['data']['error'] = 'err_wrong_password2';
-            }else{
-                if(!empty($this->session['email'])){
-                    Member::register($_POST['username'], $_POST['password'], $this->session['email']);
-                    $page['data']['step'] = 3;
-                }
-            }
+
+            $this->session[self::SESSION_KEY] = $code;
+            $_SESSION = $this->session;
+            Response::redirect('/member/signup');
         }
-        
+
+        if ($this->request->isMethod('POST') && $this->request->hasPost('email')) {
+            $email = trim($this->request->postString('email'));
+            $host = strtolower(substr(strrchr($email, '@') ?: '', 1));
+            $allowed = Config::get('member.whitelist_email_host');
+            $allowed = is_array($allowed) ? $allowed : [$allowed];
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) === false || strlen($email) > 256 || !in_array($host, $allowed, true)) {
+                $page['data']['error'] = 'err_mail_whitelist';
+            } elseif (!self::validateCaptcha($this->request->postString($this->api_config['captcha_token_name'] ?? ''))) {
+                $page['data']['error'] = 'captcha_failed';
+            } else {
+                unset($this->session[self::SESSION_KEY]);
+                $page['data']['step'] = 1;
+                $this->sendSignupLink($email, $ip, $purpose);
+            }
+
+            return $page;
+        }
+
+        $pending = $this->session[self::SESSION_KEY] ?? null;
+        if (is_string($pending) && Member::verifyEmailCode($pending, $purpose, $ip) !== null) {
+            $page['data']['step'] = 2;
+        } elseif ($this->request->isMethod('POST') || $pending !== null) {
+            unset($this->session[self::SESSION_KEY]);
+            $page['data']['error'] = 'err_invalid_code';
+            return $page;
+        }
+
+        if ($page['data']['step'] !== 2 || !$this->request->isMethod('POST')) {
+            return $page;
+        }
+
+        $username = $this->request->postString('username');
+        $password = $this->request->postString('password');
+        if (preg_match('/\A[0-9A-Za-z_]{1,32}\z/', $username) !== 1 || Member::exist($username) !== false) {
+            $page['data']['error'] = 'err_invalid_username';
+        } elseif (mb_strlen($password) < 8 || strlen($password) > 72 || str_contains($password, "\0")) {
+            $page['data']['error'] = 'err_password_length';
+        } elseif ($password !== $this->request->postString('password2')) {
+            $page['data']['error'] = 'err_wrong_password2';
+        } elseif (!Member::completeSignup($pending, $ip, $username, $password)) {
+            unset($this->session[self::SESSION_KEY]);
+            $page['data'] = ['error' => 'err_invalid_code', 'step' => 0];
+        } else {
+            unset($this->session[self::SESSION_KEY]);
+            $page['data']['step'] = 3;
+        }
+
         return $page;
+    }
+
+    private function sendSignupLink(string $email, string $ip, EmailVerificationPurpose $purpose): void
+    {
+        $existing = Member::exist(email: $email) !== false;
+        $code = $existing ? null : Member::issueEmailCode($email, $ip, $purpose);
+        if (!$existing && $code === null) {
+            return;
+        }
+
+        $language = Languages::get('mail');
+        $site = (string) Config::get('wiki.site_name');
+        $url = rtrim((string) Config::get('wiki.canonical_url'), '/') . '/member/signup?x=' . $code;
+        $message = sprintf(
+            $language['greeting'] . $language['signup'] . '<br>'
+                . $language[$existing ? 'signup_duplicate' : 'signup_success'] . '<br>' . $language['request_ip'],
+            htmlspecialchars($site),
+            htmlspecialchars($url),
+            htmlspecialchars($ip),
+        );
+        try {
+            if (self::sendMail($email, sprintf($language['signup_title'], $site), $message)) {
+                return;
+            }
+        } catch (\Exception) {
+            // The public response stays the same when mail delivery fails.
+        }
+        error_log('Signup verification email delivery failed.');
     }
 }

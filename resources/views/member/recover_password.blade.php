@@ -22,7 +22,7 @@
     <ul>
         <li>{{ $lang['msg']['check_validity'] }}</li>
         <li>{{ $lang['msg']['check_spam'] }}</li>
-        <li>{{ $lang['msg']['email_expiry'] }}</li>
+        <li>인증 링크는 30분 동안 유효합니다.</li>
     </ul>
 @endif
 @if ($wiki['page']['data']['step'] === 2)<form id="signupform" class="authform" name="signupform" method="POST">

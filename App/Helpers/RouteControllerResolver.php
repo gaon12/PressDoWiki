@@ -37,6 +37,22 @@ final class RouteControllerResolver
         'wiki' => 'Wiki',
     ];
 
+    private const PAGE_ALIASES = [
+        'BlockHistory' => 'block_history',
+        'License' => 'license',
+        'LongestPages' => 'longest_pages',
+        'NeededPages' => 'needed_pages',
+        'OldPages' => 'old_pages',
+        'OrphanedPages' => 'orphaned_pages',
+        'RandomPage' => 'random_page',
+        'RecentChanges' => 'recent_changes',
+        'RecentDiscuss' => 'recent_discuss',
+        'Search' => 'search',
+        'ShortestPages' => 'shortest_pages',
+        'UncategorizedPages' => 'uncategorized_pages',
+        'Upload' => 'upload',
+    ];
+
     private const GROUP_CONTROLLERS = [
         'admin' => [
             'config' => 'admin\\Config',
@@ -68,7 +84,7 @@ final class RouteControllerResolver
     {
         $rawPage = $uriData->page ?? '';
         $rawMenu = $uriData->menu ?? '';
-        $page = is_string($rawPage) ? $rawPage : '';
+        $page = is_string($rawPage) ? self::pageName($rawPage) : '';
         $menu = is_string($rawMenu) ? $rawMenu : '';
 
         if (isset(self::GROUP_CONTROLLERS[$page])) {
@@ -76,6 +92,11 @@ final class RouteControllerResolver
         }
 
         return self::fqcn(self::PAGE_CONTROLLERS[$page] ?? null);
+    }
+
+    public static function pageName(string $page): string
+    {
+        return self::PAGE_ALIASES[$page] ?? $page;
     }
 
     private static function fqcn(?string $relativeClassName): ?string

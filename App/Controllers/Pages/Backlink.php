@@ -3,6 +3,7 @@ namespace PressDo\App\Controllers\Pages;
 
 use PressDo\App\Models\{Document,Backlink as Models};
 use PressDo\App\Core\Controller;
+use PressDo\App\Helpers\Hangul;
 use PressDo\App\Helpers\{Namespaces,Languages,Config};
 
 class Backlink extends Controller
@@ -64,7 +65,7 @@ class Backlink extends Controller
             foreach ($backlinks as $title => $b) {
                 // backlink 정렬
                 $firstchar = iconv_substr($title, 0, 1);
-                $head = self::is_hangeul($firstchar) ? self::ko_head($firstchar) : $firstchar;
+                $head = Hangul::initial($firstchar === false ? '' : $firstchar);
 
                 if(!isset($page['data']['backlink'][$head]))
                     $page['data']['backlink'][$head] = [];

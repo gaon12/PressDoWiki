@@ -3,6 +3,7 @@ namespace PressDo\App\Controllers\Pages\api;
 
 use PressDo\App\Models\Search as S;
 use PressDo\App\Core\Controller;
+use PressDo\App\Helpers\Hangul;
 
 class Search extends Controller
 {
@@ -15,7 +16,7 @@ class Search extends Controller
     
     public function makeData(): never
     {
-        [$namespace, $title] = self::parseTitle($_GET['q']);
+        [$namespace, $title] = self::parseTitle($this->request->queryString('q'));
 
         $toplevel = '^'; // 고수준 일치: 가나닷~ (완전일치)
         $midlevel = '^'; // 중수준 일치: 가나닷 -> 가나다ㅅ
@@ -23,14 +24,14 @@ class Search extends Controller
         $charset = mb_str_split($title);
 
         foreach ($charset as $k => $t) {
-            if (self::is_hangeul($t)) {
-                $th = self::ko_head($t);
+            if (Hangul::isHangul($t)) {
+                $th = Hangul::initial($t);
                 $lowlevel .= self::CSRANGE[$th] ?? $th;
 
                 // 받침 있는 마지막 글자만 종성 추출
-                if ($k === count($charset) - 1 && (self::utf8_ord($t) - 44032) % 28 > 0) {
+                if ($k === count($charset) - 1 && isset(self::CSRANGE[$final = Hangul::finalConsonant($t)])) {
                     $toplevel .= self::CSRANGE[$t] ?? $t;
-                    $midlevel .= self::ko_exceptlast($t).self::CSRANGE[self::ko_last($t)];
+                    $midlevel .= Hangul::withoutFinalConsonant($t).self::CSRANGE[$final];
                 } else {
                     $toplevel .= self::CSRANGE[$t] ?? $t;
                     $midlevel = $toplevel;

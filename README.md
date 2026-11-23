@@ -10,28 +10,22 @@
 - 나무위키의 엔진인 the seed를 모방하여 만든 PHP 기반 위키입니다.
 - 외부 저장소 없이 사용할 수 있는 자체 클린룸 나무마크 렌더러와 기본 pressdo 스킨을 함께 제공합니다.
 
- ### 개발 환경
- - PHP 8.2
- - MariaDB
+## 설치 및 로컬 실행
 
- ### 요구 사항
- - PHP가 설치되어 있어야 합니다.
- - composer로 패키지 설치가 가능해야 합니다.
- - MySQL, MariaDB, SQLite 중 하나가 설치되어 있어야 합니다. SQLite를 사용할 경우 PHP `pdo_sqlite` 확장이 필요합니다.
- - 확인이 필요한 항목: ~~PostgreSQL, CUBRID, Oracle Database, MSSQL, Firebird, IBM DB2~~
- - SQLite 초기 스키마는 `templates/database_scheme.sqlite.sql`을 사용하세요. `database.type`은 `sqlite`, `database.name`은 SQLite 파일 경로 또는 `:memory:`로 설정합니다.
- - 방문자 위치 기능을 사용할 때만 MaxMind GeoIP2 City 데이터베이스가 필요합니다.
- - 파일이 업로드될 공간이 있어야 합니다. (S3, Local 중 선택)
- - ngram Parser가 지원되는 데이터베이스를 사용하거나 별도의 검색 엔진 소프트웨어가 설치되어 있어야 합니다.
+PHP 8.2 이상과 Composer 2가 필요합니다. MariaDB/MySQL, SQLite, PostgreSQL을
+사용할 수 있습니다. PHP에서 선택한 DB의 PDO 드라이버를 활성화하세요.
 
- ### 사전 설정
- - 파일 업로드 사용 여부를 설정하세요.
- - 지원되는 Database가 설치되어 있어야 합니다.
- - 위키에 업로드될 파일 크기에 맞게 php.ini에서 upload_max_filesize와 post_max_size를 조정해 주세요.
- - [templates/server.nginx](https://github.com/PressDo/PressDoWiki/blob/dev/templates/server.nginx)를 참고해 웹 서버를 세팅해 주세요.
+1. `composer install`을 실행합니다.
+2. `templates/`의 `config.json`, `settings.json`, `namespace.json`을 `config/`로 복사합니다.
+   `config/config.json`에 DB 연결 정보, `wiki.domain`, `wiki.front_page`, `wiki.timezone`과 저장소 설정을 입력합니다.
+3. 아래 DB별 설정에 따라 초기 스키마를 적용합니다.
+4. 웹 서버의 문서 루트를 `public/`으로 지정합니다. 로컬에서는
+   `php -S 127.0.0.1:8080 -t public`으로 시작할 수 있습니다.
 
- ### 설치 과정
- 테스트 위키에 추후 업로드 예정입니다.
+파일 업로드는 로컬 저장소 또는 S3 호환 저장소를 사용할 수 있습니다. 업로드를
+활성화하면 PHP의 `upload_max_filesize`와 `post_max_size`를 조정하세요.
+방문자 위치 기능에는 MaxMind GeoIP2 City 데이터베이스가 필요합니다.
+PostgreSQL 검색은 `LIKE`를 사용합니다.
 
 ## Installation and Local Development
 
@@ -114,7 +108,15 @@ composer check
 formatting ratchet. `composer check` verifies syntax, formatting, PHPStan level
 max, the current test suite, and known dependency advisories.
 
- ### 지원 스킨
+## 스킨
+
+기본 스킨은 Blade로 렌더링합니다. 사용자 정의 Blade 스킨은
+`resources/views/skins/<이름>.blade.php`에 배치하고
+`public/skins/<이름>/config.json`으로 등록하세요. 기존 PHP 스킨의
+`public/skins/<이름>/layout.php`도 사용할 수 있습니다. Latte 스킨을 사용하던
+설치에서는 레이아웃을 Blade로 옮기거나 기본 스킨을 선택하세요.
+
+### 지원 스킨
  - pressdo (기본 제공)
  - ~~senkawa~~ (저작권 문제로 배포하지 않습니다.)
  - liberty (예정)

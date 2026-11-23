@@ -9,7 +9,9 @@ namespace PressDo\App\Services\Mark\NamuMark;
  */
 final class InlineRenderer
 {
-    private const TOKEN_PATTERN = "~(\[\[[^\]\r\n]{1,2048}\]\]|'''[^\r\n]+?'''|''[^\r\n]+?''|__[^\r\n]+?__|\~\~[^\r\n]+?\~\~|--[^\r\n]+?--)~u";
+    private const INLINE_ALTERNATIVES = "\[\[[^\]\r\n]{1,2048}\]\]|'''[^\r\n]+?'''|''[^\r\n]+?''|__[^\r\n]+?__|\~\~[^\r\n]+?\~\~|--[^\r\n]+?--";
+
+    private const FOOTNOTE_PATTERN = '\[\*(?:[^\[\]\r\n]{1,2048}|\[(?![\[*])|\[\[[^\[\]\r\n]{1,2048}\]\]){0,8}+\]';
 
     private const MAX_INLINE_TOKENS = 50_000;
 
@@ -19,15 +21,19 @@ final class InlineRenderer
 
     private int $tokenMarkers = 0;
 
-    public function __construct(private readonly LinkCollection $links) {}
+    public function __construct(
+        private readonly LinkCollection $links,
+        private readonly Footnotes $footnotes,
+    ) {}
 
-    public function render(string $text): string
+    public function render(string $text, bool $allowFootnotes = true): string
     {
         $markers = substr_count($text, '[[')
             + substr_count($text, "''")
             + substr_count($text, '__')
             + substr_count($text, '~~')
-            + substr_count($text, '--');
+            + substr_count($text, '--')
+            + ($allowFootnotes ? substr_count($text, '[*') : 0);
         if ($markers === 0) {
             return $this->escape($text);
         }
@@ -37,8 +43,11 @@ final class InlineRenderer
             throw new \RuntimeException('NamuMark input exceeds the inline marker budget.');
         }
 
+        $alternatives = $allowFootnotes
+            ? self::FOOTNOTE_PATTERN . '|' . self::INLINE_ALTERNATIVES
+            : self::INLINE_ALTERNATIVES;
         $segments = preg_split(
-            self::TOKEN_PATTERN,
+            '~(' . $alternatives . ')~u',
             $text,
             -1,
             PREG_SPLIT_DELIM_CAPTURE,
@@ -55,7 +64,7 @@ final class InlineRenderer
 
         $html = '';
         foreach ($segments as $index => $segment) {
-            $html .= $index % 2 === 1 ? $this->renderToken($segment) : $this->escape($segment);
+            $html .= $index % 2 === 1 ? $this->renderToken($segment, $allowFootnotes) : $this->escape($segment);
         }
 
         return $html;
@@ -69,8 +78,15 @@ final class InlineRenderer
         return $this->escape($text);
     }
 
-    private function renderToken(string $token): string
+    private function renderToken(string $token, bool $allowFootnotes): string
     {
+        if ($allowFootnotes && str_starts_with($token, '[*')) {
+            return $this->footnotes->reference(
+                substr($token, 2, -1),
+                fn(string $body): string => $this->render($body, allowFootnotes: false),
+            ) ?? $this->escape($token);
+        }
+
         if (str_starts_with($token, '[[')) {
             return $this->renderLink(substr($token, 2, -2), $token);
         }

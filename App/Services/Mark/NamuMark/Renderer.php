@@ -31,7 +31,7 @@ final class Renderer
      *     }
      * }
      */
-    public function render(string $source): array
+    public function render(string $source, string $fragment = ''): array
     {
         if (strlen($source) > self::MAX_INPUT_BYTES) {
             throw new RuntimeException('NamuMark input exceeds the 2 MiB rendering limit.');
@@ -43,8 +43,10 @@ final class Renderer
         }
 
         $links = new LinkCollection();
-        $inlineRenderer = new InlineRenderer($links);
-        $html = (new BlockParser($inlineRenderer, new TableParser($inlineRenderer), $links))->render($lines);
+        $prefix = $fragment === '' ? 'fn' : 'fn-' . substr(hash('sha256', $fragment), 0, 16);
+        $footnotes = new Footnotes($prefix);
+        $inlineRenderer = new InlineRenderer($links, $footnotes);
+        $html = (new BlockParser($inlineRenderer, new TableParser($inlineRenderer), $links, $footnotes))->render($lines);
         $collectedLinks = $links->all();
 
         return [

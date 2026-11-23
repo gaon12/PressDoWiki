@@ -24,10 +24,16 @@ lists nested up to eight levels, and literal `{{{` / `}}}` code blocks. Category
 declarations and first-line Korean
 or English redirect directives produce explicit backlink metadata. Unknown
 syntax is rendered as escaped text. Basic consecutive `|| cell ||` table rows
-are rendered through a dedicated table parser. Table attributes, cell merging,
-footnotes, macros, includes, files, syntax highlighting, and parameterized
-styling remain unsupported until their grammar and resource limits are
-specified and tested.
+are rendered through a dedicated table parser. Cells can span columns with
+`<-N>` or adjacent delimiters, and rows with `<|N>`. Anonymous footnotes use
+`[* text]`, and named notes use `[*name text]` followed by `[*name]` for
+additional references. Notes appear at the end of a fragment or at a standalone
+`[각주]` or `[footnote]` marker. General table attributes, nested footnotes,
+other macros, includes, files, syntax highlighting, and parameterized styling
+remain unsupported.
+
+The table and footnote syntax follows the
+[public NamuMark syntax guide](https://namu.moe/w/나무위키:문법%20도움말).
 
 Heading output uses nested `wiki-heading-content` wrappers. A child heading is
 inside its parent's wrapper, while a heading at the same or a higher level
@@ -43,6 +49,8 @@ the immediate-sibling contract used by the bundled skin's section folding.
 - Documents with more than 100,000 lines are rejected before block parsing.
 - Quotes and lists stop at eight nesting levels.
 - A table row is limited to 128 cells and a document to 10,000 table cells.
+- Numeric spans are limited to 128, and each rendered row spans at most 128 columns.
+- A fragment can define up to 1,000 footnotes with up to 2,048 source bytes per note.
 - Table contents use the same escaping, link validation, and token budgets as ordinary text.
 - Literal code blocks are escaped and never sent through the inline parser.
 - Redirect targets are local document names no longer than 255 bytes.

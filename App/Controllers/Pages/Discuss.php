@@ -26,13 +26,14 @@ class Discuss extends Controller
 
         foreach ($actions as $a) {
             $ACL->check($a);
-            if ($error['code'] !== 'permission_'.$a)
+            if (($error['code'] ?? null) !== 'permission_'.$a)
                 array_push($d_perms, $a);
         }
 
-        if ($_GET['state'] == 'close' || $_GET['state'] == 'closed_edit_requests') {
+        $state = $this->request->queryString('state');
+        if ($state === 'close' || $state === 'closed_edit_requests') {
             // 닫힌 00 목록
-            if ($_GET['state'] == 'closed_edit_requests') {
+            if ($state == 'closed_edit_requests') {
                 $viewname = 'edit_request_close';
                 $threads = Editrequest::getBulk($uuid, 'close');
             } else {
@@ -49,7 +50,7 @@ class Discuss extends Controller
                         'title' => $title,
                         'forceShowNamespace' => self::forceShowNamespace($namespace, $title)
                     ],
-                    'state' => $_GET['state'],
+                    'state' => $state,
                     'thread_list' => $threads,
                     'editRequests' => [
                         //'slug'
@@ -67,7 +68,7 @@ class Discuss extends Controller
                     if ($c['type'] == 'status' || $c['type'] == 'topic' || $c['type'] == 'document')
                         $cont = $c['content'];
                     else
-                        $cont = self::readSyntax($c['content'], ['thread' => true])->html;
+                        $cont = self::readSyntax($c['content'], ['thread' => true, 'fragment' => $t['urlstr'] . ':' . $c['no']])->html;
                     $blocked = ($c['hide_author']);
 
                     $contr = explode(':', $c['contributor']);
@@ -107,6 +108,7 @@ class Discuss extends Controller
                         'title' => $title,
                         'forceShowNamespace' => self::forceShowNamespace($namespace, $title)
                     ],
+                    'state' => '',
                     'thread_list' => $threads,
                     'edit_requests' => EditRequest::getBulk($uuid),
                     'perms' => $d_perms

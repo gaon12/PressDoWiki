@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace PressDo\App\Core;
 
 use InvalidArgumentException;
-use Latte\Engine as Latte;
 use PressDo\App\Helpers\Config;
+use PressDo\App\Helpers\RouteControllerResolver;
 use PressDo\App\Infrastructure\Rendering\BladeTemplateRenderer;
 use PressDo\App\Shared\Rendering\TemplateRenderer;
 use RuntimeException;
@@ -15,8 +15,6 @@ use Throwable;
 final class View
 {
     private const FALLBACK_SKIN = 'pressdo';
-
-    public Latte $latte;
 
     public Skin $skin;
 
@@ -43,88 +41,42 @@ final class View
         );
     }
 
-    /**
-     * Initializes the legacy Latte renderer and selects a valid skin.
-     *
-     * Latte remains here only for layouts that have not moved to Blade yet.
-     */
     public function renderInit(): void
     {
-        $this->latte = new Latte();
-
-        $this->latte->addFilter(
-            'localdate',
-            fn(int $timestamp): string => '<time datetime="' . gmdate('Y-m-d\TH:i:s', $timestamp) . '.000Z">' . date('Y-m-d H:i:s', $timestamp) . '</time>',
-        );
-
-        $this->latte->addFilter(
-            'localreldate',
-            fn(int $timestamp): string => '<time datetime="' . gmdate('Y-m-d\TH:i:s', $timestamp) . '.000Z">' . Controller::formatBefore($timestamp) . '</time>',
-        );
-
-        $this->latte->addFilter(
-            'makeTitle',
-            fn(string $title, string $namespace): string => Controller::makeTitle($namespace, $title),
-        );
-
-        $this->latte->setTempDirectory(ProjectPaths::variable('cache/latte'));
-        $this->latte->addFilter('formatTime', fn(int $time): array => Controller::formatTime($time));
-
         $skinName = $this->resolveSkinName($this->requestedSkinName());
         $this->skin = new Skin($skinName, $this->loadSkinConfig($skinName));
     }
 
     public function renderPage(): string
     {
-        $route = $this->routeData();
-        $page = $route['page'];
-
-        switch ($page) {
-            case 'LongestPages':
-            case 'NeededPages':
-            case 'OldPages':
-            case 'OrphanedPages':
-            case 'ShortestPages':
-            case 'UncategorizedPages':
-            case 'RandomPage':
-                $file = ProjectPaths::app('Views/layouts/pagelist.latte');
-                break;
-            case 'admin':
-            case 'member':
-                $file = ProjectPaths::app('Views/layouts/' . $page . '/' . $route['menu'] . '.latte');
-                break;
-            case 'new_edit_request':
-            case 'edit_request':
-                $file = ProjectPaths::app('Views/layouts/edit.latte');
-                if ($route['action'] === 'edit') {
-                    break;
-                }
-                // The legacy route intentionally falls through for non-edit actions.
-                // no break
-            default:
-                $file = ProjectPaths::app('Views/layouts/' . $page . '.latte');
-        }
-
-        $viewName = $this->viewName();
-        if ($viewName === 'error') {
-            $file = ProjectPaths::app('Views/layouts/error.latte');
-        } elseif ($viewName === 'notfound') {
-            $file = ProjectPaths::app('Views/layouts/notfound.latte');
-        }
-
-        $bladeView = match ($viewName) {
-            'wiki' => 'wiki',
-            'error' => 'error',
-            'config' => 'admin.config',
-            'storage_integrity' => 'admin.storage_integrity',
-            default => null,
-        };
-        $this->params['innerLayout'] = $bladeView !== null
-            ? $this->templates->render($bladeView, $this->params)
-            : $this->latte->renderToString($file, $this->params);
+        $this->params['query'] ??= new Request();
+        $this->params['innerLayout'] = $this->templates->render($this->pageTemplate(), $this->params);
         $this->params['body'] = $this->renderSkinLayout($this->skin->name);
 
         return $this->templates->render('frame', $this->params);
+    }
+
+    private function pageTemplate(): string
+    {
+        $route = $this->routeData();
+        $view = $this->viewName();
+
+        if (in_array($view, ['wiki', 'error', 'notfound'], true)) {
+            return $view;
+        }
+
+        if (in_array($view, ['thread_list_close', 'edit_request_close'], true)) {
+            return 'thread_list';
+        }
+
+        return match ($route['page']) {
+            'admin', 'member' => $route['page'] . '.' . $route['menu'],
+            'longest_pages', 'needed_pages', 'old_pages', 'orphaned_pages',
+            'shortest_pages', 'uncategorized_pages', 'random_page' => 'pagelist',
+            'new_edit_request' => 'edit',
+            'edit_request' => $route['action'] === 'edit' ? 'edit' : 'edit_request',
+            default => $route['page'],
+        };
     }
 
     private function requestedSkinName(): string
@@ -157,7 +109,8 @@ final class View
             throw new InvalidArgumentException('View parameter "uri_data" must be an array.');
         }
 
-        $page = $route['page'] ?? null;
+        $rawPage = $route['page'] ?? null;
+        $page = is_string($rawPage) ? RouteControllerResolver::pageName($rawPage) : null;
         if (!is_string($page) || $page === '') {
             throw new InvalidArgumentException('View route parameter "page" must be a non-empty string.');
         }
@@ -253,38 +206,27 @@ final class View
             return $this->templates->render($builtInView, $this->params);
         }
 
-        $path = $this->skinLayoutPath($skinName);
-        if (str_ends_with($path, '.php')) {
-            return $this->renderPhpTemplate($path, $this->params);
-        }
-
-        return $this->latte->renderToString($path, $this->params);
-    }
-
-    private function skinLayoutPath(string $skinName): string
-    {
         $path = $this->findSkinLayoutPath($skinName);
         if ($path === null) {
             throw new RuntimeException('Skin layout not found.');
         }
 
-        return $path;
+        return $this->renderPhpTemplate($path, $this->params);
     }
 
     private function findSkinLayoutPath(string $skinName): ?string
     {
-        foreach (['layout.php', 'layout.latte'] as $filename) {
-            $path = ProjectPaths::public('skins/' . $skinName . '/' . $filename);
-            if (is_file($path)) {
-                return $path;
-            }
-        }
+        $path = ProjectPaths::public('skins/' . $skinName . '/layout.php');
 
-        return null;
+        return is_file($path) ? $path : null;
     }
 
     private function builtInSkinView(string $skinName): ?string
     {
+        if (str_contains($skinName, '.')) {
+            return null;
+        }
+
         $path = $this->viewRoot . '/skins/' . $skinName . '.blade.php';
 
         return is_file($path) ? 'skins.' . $skinName : null;

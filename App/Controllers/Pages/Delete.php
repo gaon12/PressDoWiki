@@ -17,9 +17,9 @@ class Delete extends Controller
         $ACL = new WikiACL($namespace, $title, $uuid, $this->session, $error);
         $ACL->check('read');
 
-        if ($error['code'] !== 'permission_read') {
+        if (($error['code'] ?? null) !== 'permission_read') {
             $ACL->check('edit');
-            if ($error['code'] !== 'permission_edit')
+            if (($error['code'] ?? null) !== 'permission_edit')
                 $ACL->check('delete');
         }
 

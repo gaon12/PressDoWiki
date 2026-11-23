@@ -43,6 +43,20 @@ if (str_contains($html, '<script>') || $result['links']['link'] !== ['대상 문
     failNamuMarkTableParserTest('Table cells must preserve escaping and backlink extraction.');
 }
 
+$spanSource = <<<'NAMUMARK'
+||<-2><|2> 가로세로 || 오른쪽 ||
+|| 아래 ||
+|||| 붙인 칸 || ||<|0> 유효하지 않은 속성 ||
+NAMUMARK;
+$spanHtml = (new Renderer())->render($spanSource)['html'];
+if (
+    !str_contains($spanHtml, '<td colspan="2" rowspan="2">가로세로</td>')
+    || !str_contains($spanHtml, '<td colspan="2">붙인 칸</td><td></td>')
+    || !str_contains($spanHtml, '&lt;|0&gt; 유효하지 않은 속성')
+) {
+    failNamuMarkTableParserTest('Only supported numeric spans should affect generated cells.');
+}
+
 $malformed = (new Renderer())->render('|| 닫히지 않은 표');
 if (!str_contains($malformed['html'], '<p>|| 닫히지 않은 표</p>')) {
     failNamuMarkTableParserTest('Malformed table rows must remain visible as ordinary escaped text.');

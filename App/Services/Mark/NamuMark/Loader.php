@@ -12,6 +12,8 @@ final class Loader
      */
     public static function loadMarkUp(string $content, array $options): array
     {
-        return (new Renderer())->render($content);
+        $fragment = $options['fragment'] ?? '';
+
+        return (new Renderer())->render($content, is_string($fragment) ? $fragment : '');
     }
 }

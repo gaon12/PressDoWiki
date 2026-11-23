@@ -21,6 +21,7 @@ parameters:
         - App/Helpers/Languages.php
         - App/Helpers/Namespaces.php
         - App/Helpers/GeoIp.php
+        - App/Helpers/Hangul.php
         - App/Helpers/RouteControllerResolver.php
         - App/Helpers/SqlDialect.php
         - App/Http

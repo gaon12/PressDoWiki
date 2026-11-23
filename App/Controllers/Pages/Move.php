@@ -18,9 +18,9 @@ class Move extends Controller
         $ACL = new WikiACL($namespace, $title, $uuid, $this->session, $error);
         $ACL->check('read');
 
-        if ($error['code'] !== 'permission_read') {
+        if (($error['code'] ?? null) !== 'permission_read') {
             $ACL->check('edit');
-            if ($error['code'] !== 'permission_edit')
+            if (($error['code'] ?? null) !== 'permission_edit')
                 $ACL->check('move');
         }
 
@@ -28,7 +28,7 @@ class Move extends Controller
         if (!$uuid)
             $error = ['code' => 'no_such_document'];
         
-        if (!$uuid || $error['code'] == 'permission_read' || $error['code'] == 'permission_edit' || $error['code'] == 'permission_move') {
+        if (!$uuid || ($error['code'] ?? null) == 'permission_read' || ($error['code'] ?? null) == 'permission_edit' || ($error['code'] ?? null) == 'permission_move') {
             return [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),

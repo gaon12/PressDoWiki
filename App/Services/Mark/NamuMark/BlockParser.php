@@ -18,6 +18,7 @@ final readonly class BlockParser
         private InlineRenderer $inlineRenderer,
         private TableParser $tableParser,
         private LinkCollection $links,
+        private Footnotes $footnotes,
     ) {}
 
     /**
@@ -75,6 +76,15 @@ final readonly class BlockParser
                 continue;
             }
 
+            if (in_array(strtolower(trim($line)), ['[각주]', '[footnote]'], true)) {
+                $this->flushParagraph($paragraph, $writer);
+                $notes = $this->footnotes->flush();
+                if ($notes !== '') {
+                    $writer->addBlock($notes);
+                }
+                continue;
+            }
+
             if (($tableRow = $this->tableParser->parseRow($line)) !== null) {
                 $this->flushParagraph($paragraph, $writer);
                 $tableRows = [$tableRow];
@@ -122,7 +132,7 @@ final readonly class BlockParser
 
         $this->flushParagraph($paragraph, $writer);
 
-        return $writer->finish();
+        return $writer->finish() . $this->footnotes->flush();
     }
 
     private function matchRedirect(string $line): ?string

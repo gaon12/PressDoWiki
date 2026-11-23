@@ -9,7 +9,7 @@ class RandomPage extends Controller
 {
     public function makeData(): array
     {
-        $namespace = in_array($_GET['namespace'], Namespaces::all()) ? $_GET['namespace'] : '문서';
+        $namespace = Namespaces::validate($requestedNamespace = $this->request->queryString('namespace')) ? $requestedNamespace : Namespaces::document();
         $page = [
             'view_name' => 'RandomPage',
             'title' => Languages::get('page', 'RandomPage'),

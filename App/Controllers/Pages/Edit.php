@@ -21,7 +21,7 @@ class Edit extends Controller
         $ACL = new WikiACL($namespace, $title, $uuid, $this->session, $error);
         $ACL->check('read');
 
-        if ($error['code'] == 'permission_read'){
+        if (($error['code'] ?? null) == 'permission_read'){
             return [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),
@@ -31,10 +31,10 @@ class Edit extends Controller
         $ACL->check('edit');
 
         // 편집권한이 없으면 편집 요청 권한 확인
-        if ($error['code'] == 'permission_edit') {
+        if (($error['code'] ?? null) == 'permission_edit') {
             $error1 = $error;
             $ACL->check('edit_request');
-            if ($error['code'] !== 'permission_edit_request') {
+            if (($error['code'] ?? null) !== 'permission_edit_request') {
                 Header('Location: /new_edit_request/'.$this->uri_data->title);
                 exit;
             } else

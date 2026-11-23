@@ -4,7 +4,13 @@ This document records the current technical baseline and the architecture we are
 moving toward. It is intentionally blunt: preserving accidental architecture
 would make the rewrite slower and less safe.
 
-## The roast
+## Rendering migration status
+
+Bundled pages, partials, the frame, and the default skin now render with Blade.
+The application retains support for installed PHP skin layouts. Latte layouts
+need to be converted to Blade.
+
+## The roast (2026-08-10 baseline)
 
 The application currently behaves like an undocumented framework whose public
 API is every public property, static method, global variable, relative path, and
@@ -162,8 +168,7 @@ HTTP kernel concerns, Illuminate owns Blade, and PressDoWiki owns wiki behavior.
    SVG needs a dedicated sanitizer or remains disabled.
 6. New SQL uses prepared statements and lives in persistence classes. A use
    case owns its transaction boundary.
-7. New templates are Blade files. Latte remains only behind the legacy view
-   adapter until each route is migrated; no new Latte templates are accepted.
+7. Application templates are Blade files.
 8. Copied third-party sources are replaced with Composer packages or isolated as
    legacy code with an explicit replacement issue and tests.
 9. PHPStan stays at level max. Its scanned paths expand as vertical slices are
@@ -182,8 +187,7 @@ HTTP kernel concerns, Illuminate owns Blade, and PressDoWiki owns wiki behavior.
 4. Extract identity/session/CSRF handling before migrating write routes.
 5. Migrate feature by feature: wiki reads, edits/history, discussions, members,
    ACL/admin, and uploads.
-6. Remove Latte and the legacy controller/model base classes only after no route
-   reaches them.
+6. Remove the legacy controller/model base classes after no route reaches them.
 7. Profile representative read, edit, history, search, and discussion requests;
    then add query changes or caches with measured before/after results.
 

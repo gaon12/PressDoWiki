@@ -12,6 +12,8 @@ class Aclgroup extends Controller
         if (isset($_POST['id']))
             $group = ACL::groupIdLookup($_POST['id']);
 
+        $group_id = null;
+        $target_group = null;
         $perms = [];
         if (isset($this->session['member']))
             ACL::getAccountPerms($this->session['uuid'], $this->session['member']['username'], $perms);
@@ -34,7 +36,7 @@ class Aclgroup extends Controller
         }
 
         // aclgroup member control
-        if (in_array($_POST['group'], $aclgroups)
+        if (isset($_POST['group']) && in_array($_POST['group'], $aclgroups)
             && intval($_POST['duration_raw']) >= 0
             && self::getAllowedAction(array_search($_POST['group'], $aclgroups), 'add', $perms)) {
 

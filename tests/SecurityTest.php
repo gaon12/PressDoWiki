@@ -19,16 +19,21 @@ namespace {
     require __DIR__.'/../App/Helpers/DefaultConfig.php';
     require __DIR__.'/../App/Helpers/Languages.php';
     require __DIR__.'/../App/Core/Controller.php';
+    require __DIR__.'/../App/Core/Request.php';
 
     use PressDo\App\Core\Controller;
+    use PressDo\App\Core\Request;
     use PressDo\App\Helpers\Config;
     use PressDo\App\Helpers\DefaultConfig;
     use PressDo\App\Helpers\Languages;
 
     final class TestController extends Controller
     {
-        public function __construct()
+        public string $content;
+
+        public function __construct(array $post)
         {
+            $this->request = new Request(post: $post);
         }
 
         public static function captcha(?string $token): bool
@@ -87,18 +92,20 @@ namespace {
     assertSameValue(128, strlen($random), 'Random string should honor requested length.');
     assertSameValue(1, preg_match('/^[0-9A-Za-z_-]+$/', $random), 'Random string should use only configured characters.');
 
-    $page = new TestController();
+    $page = new TestController(['token' => 'known-token', 'content' => 'new &amp;']);
     $page->session = ['edittoken' => 'known-token', 'raw' => 'old'];
-    $_POST = ['token' => 'known-token', 'content' => 'new'];
     assertSameValue(true, TestController::processEdit($page, 'edittoken'), 'Matching CSRF token should allow edit processing.');
-    assertSameValue('new', $page->content, 'Edit processing should store decoded content.');
+    assertSameValue('new &amp;', $page->content, 'Edit processing should preserve the submitted source.');
 
-    $page = new TestController();
+    $page = new TestController(['token' => 'wrong-token', 'content' => 'new']);
     $page->session = ['edittoken' => 'known-token', 'raw' => 'old'];
-    $_POST = ['token' => 'wrong-token', 'content' => 'new'];
     assertSameValue(false, TestController::processEdit($page, 'edittoken'), 'Wrong CSRF token should reject edit processing.');
     assertSameValue('err_csrf_token', $page->error['code'], 'Wrong CSRF token should set the CSRF error.');
 
-    $_POST = [];
+    $page = new TestController(['content' => 'new']);
+    $page->session = ['raw' => 'old'];
+    assertSameValue(false, TestController::processEdit($page, 'edittoken'), 'An edit should require a session and request token.');
+    assertSameValue('err_csrf_token', $page->error['code'], 'A missing CSRF token should set the CSRF error.');
+
     echo "Security tests passed.".PHP_EOL;
 }

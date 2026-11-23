@@ -40,7 +40,7 @@ class EditRequest extends Controller
             'thread' => false
         ]);
 
-        if (/*$error['code'] == 'no_such_document' || */$error['code'] == 'permission_read') {
+        if (($error['code'] ?? null) == 'permission_read') {
             return [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),
@@ -49,10 +49,10 @@ class EditRequest extends Controller
         }
 
         if ($this->uri_data->action == 'edit' && $erdata['status'] == 'open') {
-            if ($error['code'] !== 'permission_read')
+            if (($error['code'] ?? null) !== 'permission_read')
                 $ACL->check('edit_request');
 
-            if ($error['code'] == 'permission_edit_request')
+            if (($error['code'] ?? null) == 'permission_edit_request')
                 $this->error = $error;
 
             if ($this->session['uuid'] !== $contributor['uuid']) {
@@ -101,7 +101,7 @@ class EditRequest extends Controller
     
             $this->session['eretoken'] = $page['data']['token'];
             return $page;
-        } elseif ($this->uri_data->action == 'close' && $erdata['status'] == 'open' && ($this->session['uuid'] == $contributor['uuid'] || $error['code'] !== 'permission_edit')) {
+        } elseif ($this->uri_data->action == 'close' && $erdata['status'] == 'open' && ($this->session['uuid'] == $contributor['uuid'] || ($error['code'] ?? null) !== 'permission_edit')) {
             $member = $this->session['member'] ? $this->session['uuid'] : null;
             $ip = !$member ? ($this->session['uuid'] ?? Member::getIpUuid($this->session['ip'])) : null;
             if (!$member && !$this->session['uuid']) {
@@ -121,7 +121,7 @@ class EditRequest extends Controller
             ER::reopen($this->uri_data->title);
             Header('Location: /edit_request/'.$this->uri_data->title);
             exit;
-        } elseif ($this->uri_data->action == 'accept' && $erdata['status'] == 'open' && $error['code'] !== 'permission_edit') {
+        } elseif ($this->uri_data->action == 'accept' && $erdata['status'] == 'open' && ($error['code'] ?? null) !== 'permission_edit') {
             $member = $this->session['member'] ? $this->session['uuid'] : null;
             $ip = !$member ? ($this->session['uuid'] ?? Member::getIpUuid($this->session['ip'])) : null;
             if (!$member && !$this->session['uuid']) {
@@ -133,7 +133,7 @@ class EditRequest extends Controller
             exit;
         }
 
-        if ($error['code'] !== 'permission_read')
+        if (($error['code'] ?? null) !== 'permission_read')
             $ACL->check('edit');
 
         $page = [
@@ -227,7 +227,7 @@ class EditRequest extends Controller
             'member' => $member,
             'ip' => $ip,
             'uuid' => $Cuuid,
-            'admin' => $mperms[$Cuuid] === null ? false : in_array('admin', $mperms[$Cuuid]),
+            'admin' => in_array('admin', $mperms[$Cuuid] ?? [], true),
             'style' => $style
         ];
     }

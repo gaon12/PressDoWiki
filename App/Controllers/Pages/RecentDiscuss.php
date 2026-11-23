@@ -9,7 +9,7 @@ class RecentDiscuss extends Controller
 {
     public function makeData(): array
     {
-        $lo = $_GET['logtype'];
+        $lo = $this->request->queryString('logtype');
         $logtypes = [
             'normal_thread',
             'old_thread',

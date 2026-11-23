@@ -129,7 +129,7 @@ class Controller
         $View = new View($this->session);
         $View->renderInit();
 
-        $license = $this->dataset['page']['view_name'] == 'License' ? json_decode(file_get_contents(ProjectPaths::config('license.json')), true) : null;
+        $license = ($this->dataset['page']['view_name'] ?? null) === 'License' ? json_decode(file_get_contents(ProjectPaths::config('license.json')), true) : null;
 
         $paramSet = [
             'wiki' => $this->dataset,
@@ -142,6 +142,7 @@ class Controller
             'request_uri' => $this->request->serverString('REQUEST_URI'),
             'search_query' => $this->request->queryString('q'),
             'post' => $this->request->postData(),
+            'query' => $this->request,
             'license' => $license,
             'api_config' => $this->api_config,
         ];
@@ -248,23 +249,25 @@ class Controller
 
     protected static function editFormProcess(Controller &$page, string $tokennm): bool
     {
-        // Edit Submission
-        $_POST['content'] = htmlspecialchars_decode($_POST['content']);
+        $submittedContent = $page->request->postScalarString('content');
+        if ($submittedContent === null) {
+            return false;
+        }
 
-        $content = preg_replace('/^#(redirect|넘겨주기) (.+)$/im', '#redirect $2', $_POST['content']);
+        $content = preg_replace('/^#(redirect|넘겨주기) (.+)$/im', '#redirect $2', $submittedContent);
 
         // ignore string after redirect
         if (preg_match('/^#redirect (.+)$/im', $content, $matches)) {
             $content = $matches[0];
         }
 
-        $submittedToken = $_POST['token'] ?? '';
+        $submittedToken = $page->request->postString('token');
         $sessionToken = $page->session[$tokennm] ?? '';
 
-        if (!hash_equals((string) $sessionToken, (string) $submittedToken)) {
+        if ($sessionToken === '' || !hash_equals((string) $sessionToken, $submittedToken)) {
             // Reject: wrong anti-CSRF token
             $page->error = self::makeErrorBox('err_csrf_token');
-        } elseif ($page->session['raw'] == $content) {
+        } elseif (($page->session['raw'] ?? null) === $content) {
             // Reject: same doc content
             $page->error = self::makeErrorBox('err_same_contents');
         } else {
@@ -357,7 +360,7 @@ class Controller
      */
     public static function getIPAddr(): string
     {
-        return $_SERVER['REMOTE_ADDR'];
+        return Request::fromGlobals()->serverString('REMOTE_ADDR');
     }
 
     public static function formatTime(int $sec): array
@@ -371,30 +374,6 @@ class Controller
         $min = floor($sec / 60);
         $sec -= $min * 60;
         return ['week' => $week, 'day' => $day, 'hour' => $hour, 'minute' => $min, 'second' => $sec];
-    }
-
-    public static function formatBefore(int $timestamp): string
-    {
-        $diff = time() - $timestamp;
-        if ($diff < 10):
-            return Languages::get('recent', 'rightbefore');
-        elseif ($diff < 60):
-            $time = $diff;
-            $unit = 'second';
-        elseif ($diff < 3600):
-            $time = $diff / 60;
-            $unit = 'minute';
-        elseif ($diff < 86400):
-            $time = $diff / 3600;
-            $unit = 'hour';
-        elseif ($diff < 2592000):
-            $time = $diff / 86400;
-            $unit = 'day';
-        else:
-            return date('Y-m-d H:i:s', $timestamp);
-        endif;
-
-        return sprintf(Languages::get('recent', 'before'), floor($time), Languages::get('acl', $unit));
     }
 
     /**
@@ -423,100 +402,10 @@ class Controller
         return $s;
     }
 
-    protected static function utf8_ord($c)
-    {
-        $len = strlen($c);
-        if ($len <= 0) {
-            return false;
-        }
-        $h = ord($c[0]);
-        if ($h <= 0x7F) {
-            return $h;
-        }
-        if ($h < 0xC2) {
-            return false;
-        }
-        if ($h <= 0xDF && $len > 1) {
-            return ($h & 0x1F) <<  6 | (ord($c[1]) & 0x3F);
-        }
-        if ($h <= 0xEF && $len > 2) {
-            return ($h & 0x0F) << 12 | (ord($c[1]) & 0x3F) <<  6 | (ord($c[2]) & 0x3F);
-        }
-        if ($h <= 0xF4 && $len > 3) {
-            return ($h & 0x0F) << 18 | (ord($c[1]) & 0x3F) << 12 | (ord($c[2]) & 0x3F) << 6 | (ord($c[3]) & 0x3F);
-        }
-        return false;
-    }
-
-    protected static function utf8_chr($num)
-    {
-        if ($num < 128) {
-            return chr($num);
-        }
-        if ($num < 2048) {
-            return chr(($num >> 6) + 192) . chr(($num & 63) + 128);
-        }
-        if ($num < 65536) {
-            return chr(($num >> 12) + 224) . chr((($num >> 6) & 63) + 128) . chr(($num & 63) + 128);
-        }
-        if ($num < 2097152) {
-            return chr(($num >> 18) + 240) . chr((($num >> 12) & 63) + 128) . chr((($num >> 6) & 63) + 128) . chr(($num & 63) + 128);
-        }
-        return false;
-    }
-
-    protected static function is_hangeul(string $c)
-    {
-        $o = self::utf8_ord($c);
-        if (0x1100 <= $o && $o <= 0x11FF) {
-            return true;
-        }
-        if (0x3130 <= $o && $o <= 0x318F) {
-            return true;
-        }
-        if (0xAC00 <= $o && $o <= 0xD7A3) {
-            return true;
-        }
-        return false;
-    }
-
-    protected static function ko_head(string $char)
-    {
-        $chars = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-        $code = self::utf8_ord($char) - 44032;
-        if ($code > -1 && $code < 11172) {
-            $result = $chars[$code / 588];
-        } else {//if(in_array($char, $chars)) {
-            // not hangul
-            $result = $char;
-        }
-        return $result;
-    }
-
-    protected static function ko_last(string $char)
-    {
-        $chars = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ',' ㅌ','ㅍ','ㅎ'];
-        $code = self::utf8_ord($char) - 44032;
-        if ($code > -1 && $code < 11172) {
-            $result = $chars[$code % 28];
-        } else {//if(in_array($char, $chars)) {
-            // not hangul
-            $result = '';
-        }
-        return $result;
-    }
-
-    protected static function ko_exceptlast(string $char)
-    {
-        $code = self::utf8_ord($char) - 44032;
-        return self::utf8_chr($code - ($code % 28) + 44032);
-    }
-
     public static function getTransparentBackground(int $width, int $height): string
     {
         $image = new SVG($width, $height);
-        $doc = $image->getDocument();
-        return $image;
+        return (string) $image;
     }
 
     public static function getCookieOptions(int $duration): array

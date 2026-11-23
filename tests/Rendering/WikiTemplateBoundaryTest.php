@@ -151,7 +151,40 @@ try {
     ];
     $view->renderPage();
     if ($recordingRenderer->views !== ['wiki', 'skins.pressdo', 'frame']) {
-        failWikiTemplateBoundaryTest('Wiki reads should use Blade for the page, bundled skin, and frame without Latte.');
+        failWikiTemplateBoundaryTest('Wiki reads should use Blade for the page, bundled skin, and frame.');
+    }
+
+    foreach ([
+        [['page' => 'wiki'], 'notfound', 'notfound'],
+        [['page' => 'Search'], 'search', 'search'],
+        [['page' => 'LongestPages'], 'LongestPages', 'pagelist'],
+        [['page' => 'new_edit_request'], 'edit_edit_request', 'edit'],
+        [['page' => 'edit_request', 'action' => 'edit'], 'edit_edit_request', 'edit'],
+        [['page' => 'edit_request'], 'edit_request', 'edit_request'],
+        [['page' => 'discuss'], 'thread_list', 'discuss'],
+        [['page' => 'discuss'], 'thread_list_close', 'thread_list'],
+        [['page' => 'member', 'menu' => 'login'], 'login', 'member.login'],
+        [['page' => 'admin', 'menu' => 'grant'], 'grant', 'admin.grant'],
+    ] as [$route, $name, $expected]) {
+        $recordingRenderer->views = [];
+        $view->params = [
+            'uri_data' => $route,
+            'wiki' => ['page' => ['view_name' => $name]],
+        ];
+        $view->renderPage();
+        if ($recordingRenderer->views !== [$expected, 'skins.pressdo', 'frame']) {
+            failWikiTemplateBoundaryTest('Blade view selection failed for ' . $route['page'] . '/' . $name);
+        }
+    }
+
+    $rawSource = '</textarea><b>원문</b> &amp;';
+    $rawView = $renderer->render('raw', [
+        'wiki' => ['page' => ['data' => ['text' => $rawSource, 'document' => ['title' => '문서']]]],
+        'lang' => [],
+        'uri_data' => ['title' => '문서'],
+    ]);
+    if (!str_contains($rawView, htmlspecialchars($rawSource)) || str_contains($rawView, '<b>원문</b>')) {
+        failWikiTemplateBoundaryTest('The raw textarea should preserve the source as text.');
     }
 } finally {
     removeWikiTemplateTestDirectory($cachePath);

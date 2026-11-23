@@ -7,11 +7,7 @@ namespace PressDo\App\Services\Mark\NamuMark;
 use RuntimeException;
 
 /**
- * Recognizes and renders the deliberately small, safe core of NamuMark tables.
- *
- * Table attributes and cell merging are separate grammar features. Treating
- * them as ordinary cell text until they have their own validator prevents CSS
- * or HTML from crossing the renderer's escaping boundary by accident.
+ * Renders NamuMark table cells and bounded numeric spans.
  */
 final class TableParser
 {
@@ -53,13 +49,53 @@ final class TableParser
         foreach ($rows as $cells) {
             $this->reserveCells(count($cells));
             $html .= '<tr>';
-            foreach ($cells as $cell) {
-                $html .= '<td>' . $this->inlineRenderer->render(trim($cell)) . '</td>';
+            $columnCount = 0;
+            $implicitColspan = 1;
+            foreach ($cells as $index => $cell) {
+                if ($cell === '' && isset($cells[$index + 1])) {
+                    ++$implicitColspan;
+                    continue;
+                }
+
+                [$content, $colspan, $rowspan] = $this->parseCell($cell, $implicitColspan);
+                $columnCount += $colspan;
+                if ($columnCount > self::MAX_COLUMNS_PER_ROW) {
+                    throw new RuntimeException('NamuMark table rows cannot contain more than 128 columns.');
+                }
+
+                $html .= '<td'
+                    . ($colspan > 1 ? ' colspan="' . $colspan . '"' : '')
+                    . ($rowspan > 1 ? ' rowspan="' . $rowspan . '"' : '')
+                    . '>' . $this->inlineRenderer->render($content) . '</td>';
+                $implicitColspan = 1;
             }
             $html .= '</tr>';
         }
 
         return $html . '</tbody></table></div>';
+    }
+
+    /** @return array{string, int, int} */
+    private function parseCell(string $cell, int $implicitColspan): array
+    {
+        $content = trim($cell);
+        $spans = [];
+        for ($index = 0; $index < 2; ++$index) {
+            if (preg_match('/\A<([-|])([1-9][0-9]{0,2})>/', $content, $match) !== 1
+                || isset($spans[$match[1]])) {
+                break;
+            }
+
+            $span = (int) $match[2];
+            if ($span > self::MAX_COLUMNS_PER_ROW) {
+                break;
+            }
+
+            $spans[$match[1]] = $span;
+            $content = ltrim(substr($content, strlen($match[0])));
+        }
+
+        return [$content, $spans['-'] ?? $implicitColspan, $spans['|'] ?? 1];
     }
 
     private function reserveCells(int $count): void

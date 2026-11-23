@@ -12,13 +12,14 @@ class Signup extends Controller
         if(!empty($this->session['member']))
             Header('Location: /');
 
+        $redirect = $this->request->queryOptionalString('redirect');
         $page = [
             'view_name' => 'signup',
             'title' => Languages::get('page')['signup'],
             'data' => [
                 'error' => null,
                 'step' => 0,
-                'redirect' => $_GET['redirect']? base64_decode($_GET['redirect']):null
+                'redirect' => $redirect === null ? null : base64_decode($redirect, true)
             ],
             'menus' => [],
             'customData' => []

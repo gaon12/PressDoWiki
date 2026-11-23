@@ -9,16 +9,18 @@ class LongestPages extends Controller
 {
     public function makeData(): array
     {
+        $requestedFrom = (int) $this->request->queryString('from');
+        $requestedUntil = (int) $this->request->queryString('until');
         $from = 1;
         $count = 100;
         
-        if ($_GET['from'] > 0)
-            $from = $_GET['from'];
-        elseif ($_GET['until'] > 0){
-            if ($_GET['until'] < 100) 
-                $count = $_GET['until'];
+        if ($requestedFrom > 0)
+            $from = $requestedFrom;
+        elseif ($requestedUntil > 0){
+            if ($requestedUntil < 100)
+                $count = $requestedUntil;
             else
-                $from = $_GET['until'] - 100;
+                $from = $requestedUntil - 100;
         }
         
         $resultSet = Document::getPagesByLength('DESC', $from, $count);

@@ -35,7 +35,7 @@ class History extends Controller
             'customData' => []
         ];
         
-        if ($error['code'] == 'permission_read') {
+        if (($error['code'] ?? null) == 'permission_read') {
             $page = [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),
@@ -52,12 +52,8 @@ class History extends Controller
             ];
         }
 
-        if (isset($_GET['from']))
-            $from = $_GET['from'];
-
-        if (isset($_GET['until']))
-            $until = $_GET['until'];
-
+        $from = (int) $this->request->queryString('from') ?: null;
+        $until = (int) $this->request->queryString('until') ?: null;
         $fetch = H::load($uuid, $from, $until);
         $ver = H::getVersion($uuid);
 
@@ -130,7 +126,7 @@ class History extends Controller
                 'ip' => $ip,
                 'contributor_uuid' => $Cuuid,
                 'style' => $userStyleSet[$Cuuid] ?? $userStyleSet[$ip],
-                'admin' => $mperms[$Cuuid] === null ? false : in_array('admin', $mperms[$Cuuid]),
+                'admin' => in_array('admin', $mperms[$Cuuid] ?? [], true),
                 'edit_request' => $f['edit_request_uri'],
                 'acl' => $f['acl_changed'],
                 'from' => $f['moved_from'],

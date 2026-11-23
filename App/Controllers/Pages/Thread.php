@@ -18,7 +18,7 @@ class Thread extends Controller
         $ACL = new WikiACL($namespace, $title, $uuid, $this->session, $error);
         $ACL->check('read');
 
-        if ($error['code'] == 'permission_read'){
+        if (($error['code'] ?? null) == 'permission_read'){
             $page = [
                 'view_name' => 'error',
                 'title' => Languages::get('page')['error'],
@@ -40,7 +40,8 @@ class Thread extends Controller
             else {
                 $cont = $this::readSyntax($c['content'], [
                     'title' => $this->uri_data->title,
-                    'thread' => true
+                    'thread' => true,
+                    'fragment' => $this->uri_data->title . ':' . $c['no'],
                 ])->html;
             }
 

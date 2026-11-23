@@ -9,21 +9,10 @@ class BlockHistory extends Controller
 {
     public function makeData(): array
     {
-        if (!empty($_GET['from']) && is_integer($_GET['from']))
-            $from = $_GET['from'];
-
-        if (!empty($_GET['until']) && is_integer($_GET['until']))
-            $until = $_GET['until'];
-        else
-            $until = 0;
-
-        if ($_GET['target'] == 'author')
-            $type = 'author';
-        else
-            $type = 'text';
-
-        $keyword = $_GET['query'] ?? '';
-
+        $from = (int) $this->request->queryString('from') ?: null;
+        $until = (int) $this->request->queryString('until');
+        $type = $this->request->queryString('target') === 'author' ? 'author' : 'text';
+        $keyword = $this->request->queryString('query');
 
         $data = array_reverse(BH::get($type, $keyword, $from, $until));
         $dataset = [];
@@ -55,7 +44,7 @@ class BlockHistory extends Controller
                 $target_member = Member::lookup($uuid2);
             }
 
-            if ($d['target_ip_uuid'] !== null) {
+            if (isset($d['target_ip_uuid'])) {
                 $uuid2 = BH::bin2uuid($d['target_ip_uuid']);
                 $target_ip = Member::ipLookup($uuid2);
             }
@@ -91,10 +80,10 @@ class BlockHistory extends Controller
         ];
 
         // 첫 항목이 (조건 내에서) 최신 항목이 아닌 경우 띄움
-        [$max, $min] = BH::get_block_history_count($type,$keyword);
-        if ($page['data']['history'][0]['content']['id'] !== $max)
+        ['max' => $max, 'min' => $min] = BH::get_block_history_count($type, $keyword);
+        if ($dataset !== [] && $dataset[0]['content']['id'] !== $max)
             $page['data']['prev_page'] = $page['data']['history'][0]['content']['id'] + 1;
-        if (end($page['data']['history'])['content']['id'] !== $min)
+        if ($dataset !== [] && end($dataset)['content']['id'] !== $min)
             $page['data']['next_page'] = end($page['data']['history'])['content']['id'] - 1;
 
         return $page;

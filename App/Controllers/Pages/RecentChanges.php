@@ -19,8 +19,9 @@ class RecentChanges extends Controller
             'customData' => []
         ];
 
-        if(in_array($_GET['logtype'], ['create', 'revert', 'move', 'delete']))
-            $lt = $_GET['logtype'];
+        $logType = $this->request->queryString('logtype');
+        if(in_array($logType, ['create', 'revert', 'move', 'delete']))
+            $lt = $logType;
         else
             $lt = 'all';
 

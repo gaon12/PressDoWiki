@@ -60,6 +60,29 @@ try {
 } catch (RuntimeException) {
 }
 
+$noteSource = <<<'NAMUMARK'
+본문[* 첫 각주 <script>] [*출처 [[참고 문서]]]
+[각주]
+다시 [*출처] [*없는참조]
+NAMUMARK;
+$notes = (new Renderer())->render($noteSource);
+if (
+    !str_contains($notes['html'], 'id="fn-ref-1" href="#fn-1">[1]')
+    || !str_contains($notes['html'], 'id="fn-1"><a href="#fn-ref-1">[1]</a> 첫 각주 &lt;script&gt;')
+    || substr_count($notes['html'], 'href="#fn-2">[출처]') !== 2
+    || substr_count($notes['html'], 'id="fn-2"') !== 1
+    || !str_contains($notes['html'], '[*없는참조]')
+    || !str_contains($notes['html'], "</div>\n<p>다시")
+    || $notes['links']['link'] !== ['참고 문서']
+) {
+    failNamuMarkRendererTest('Footnotes should render bounded links, escaped bodies, references, and placement.');
+}
+
+$otherFragment = (new Renderer())->render($noteSource, 'discussion:15');
+if (str_contains($otherFragment['html'], 'id="fn-ref-1"')) {
+    failNamuMarkRendererTest('Embedded fragments should use distinct footnote anchors.');
+}
+
 $duplicates = implode(' ', array_fill(0, 5_000, '[[같은 문서]]'));
 $duplicateResult = (new Renderer())->render($duplicates);
 if ($duplicateResult['links']['link'] !== ['같은 문서']) {

@@ -1,20 +1,22 @@
 @php
     $viewName = $wiki['page']['view_name'] ?? '';
     $pageData = $wiki['page']['data'] ?? [];
+    $siteName = $config['wiki.site_name'] ?? 'PressDoWiki';
+    $canonicalUrl = ($config['wiki.canonical_url'] ?? '') . ($request_uri ?? '');
 @endphp
 <!DOCTYPE html>
 <head>
-    <link href="{{ $config['wiki.logo_url'] }}" rel="icon">
+    <link href="{{ $config['wiki.logo_url'] ?? '/favicon.ico' }}" rel="icon">
     <meta charset="UTF-8">
     <meta name="viewport" content="user-scalable=no, initial-scale=1, width=device-width, viewport-fit=cover">
     <meta name="generator" content="PressDo">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="{{ $config['wiki.site_name'] }}">
-    <meta name="msapplication-tooltip" content="{{ $config['wiki.site_name'] }}">
+    <meta name="application-name" content="{{ $siteName }}">
+    <meta name="msapplication-tooltip" content="{{ $siteName }}">
     <meta name="color-scheme" content="light dark">
     <meta name="msapplication-starturl" content="/w/{{ rawurlencode((string) $config['wiki.front_page']) }}">
-    <link rel="canonical" href="{{ $config['wiki.canonical_url'].$request_uri }}">
-    <link rel="search" type="application/opensearchdescription+xml" title="{{ $config['wiki.site_name'] }}" href="/opensearch.xml">
+    <link rel="canonical" href="{{ $canonicalUrl }}">
+    <link rel="search" type="application/opensearchdescription+xml" title="{{ $siteName }}" href="/opensearch.xml">
     <link rel="stylesheet" href="/src/style/document.css">
     <meta name="googlebot" content="noarchive">
     <meta name="robots" content="max-image-preview:large">
@@ -27,14 +29,14 @@
     @if (!empty($config['wiki.use_captcha']))
         <script src="{{ $api_config['captcha_api_endpoint'] }}" async defer></script>
     @endif
-    <title>{{ $wiki['page']['title'] }} - {{ $config['wiki.site_name'] }}</title>
+    <title>{{ $wiki['page']['title'] }} - {{ $siteName }}</title>
     @if ($viewName === 'wiki')
         <meta property="og:type" content="article">
         <meta property="og:title" content="{{ $wiki['page']['title'] }}">
-        <meta property="og:site_name" content="{{ $config['wiki.site_name'] }}">
+        <meta property="og:site_name" content="{{ $siteName }}">
         <meta property="og:image" content="">
-        <meta property="og:description" content="{{ $config['wiki.description'] }}">
-        <meta property="og:url" content="{{ $config['wiki.canonical_url'].$request_uri }}">
+        <meta property="og:description" content="{{ $config['wiki.description'] ?? '' }}">
+        <meta property="og:url" content="{{ $canonicalUrl }}">
         <script defer src="/src/script/document.js"></script>
         <link rel="copyright" href="//creativecommons.org/licenses/by-nc-sa/2.0/kr/">
     @endif

@@ -50,7 +50,7 @@ class Config
     public static function get(string $key, string $implodeDelimiter = ''): mixed
     {
         self::init();
-        $res = static::$Configs[$key];
+        $res = static::$Configs[$key] ?? null;
         if (!empty($implodeDelimiter) && is_countable($res)) {
             $res = implode($implodeDelimiter, $res);
         }

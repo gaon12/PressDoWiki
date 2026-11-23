@@ -1,0 +1,22 @@
+<div class="wiki-content">
+    <div>
+        <h2>PressDo</h2>
+        <p>v{{ $wiki['page']['data']['version'] }} ({{ $wiki['page']['data']['hash'] }}) </p>
+        <p>{{ $wiki['page']['data']['updated'] }}</p>
+        <p>Author: <a href="https://github.com/aaei924">PRASEOD-</a><br>
+        PressDo is licensed under the <a rel="license" href="https://github.com/PressDo/PressDoWiki/blob/dev/LICENSE" target="_blank">GNU Affero General Public License v3.0</a>.</p>
+        <h3>Contributors</h3>
+        <ul>
+            <li>admin@prws.kr (backend & frontend)</li>
+            <li>issac4892@prws.kr (readme)</li>
+        </ul>
+        <h3>Open source license</h3>
+        <ul>
+            @foreach ($license as $l)<li>
+                <a href="{{ $l['url'] }}" target="_blank">{{ $l['name'] }}</a><br>
+                Author : <a href="{{ $l['author_url'] }}" target="_blank">{{ $l['author'] }}</a><br>
+                {{ $l['name'] }} is licensed under the <a rel="license" href="{{ $l['license_url'] }}" target="_blank">{{ $l['license_name'] }} License</a>.
+            </li>@endforeach
+        </ul>
+    </div>
+</div>

@@ -21,24 +21,21 @@ class NewEditRequest extends Controller
         $ACL = new WikiACL($namespace, $title, $uuid, $this->session, $error);
         $ACL->check('read');
 
-        if ($error['code'] !== 'permission_read')
+        if (($error['code'] ?? null) !== 'permission_read')
             $ACL->check('edit_request');
         
-        if ($error['code'] == 'permission_edit_request')
+        if (($error['code'] ?? null) == 'permission_edit_request')
             $this->error = $error;
 
         if ($formReceived && !self::validateCaptcha($_POST[$this->api_config['captcha_token_name'] ?? ''] ?? null))
             $this->error = self::makeErrorBox('captcha_failed');
         
-        if (!$uuid)
+        $doc = $uuid ? Document::load($uuid) : null;
+        if (($doc['content'] ?? null) === null && ($error['code'] ?? null) !== 'permission_read') {
             $error = ['code' => 'no_such_document'];
-        else
-            $doc = Document::load($uuid);
+        }
 
-        if ($doc['content'] === null)
-            $error = ['code' => 'no_such_document'];
-        
-        if ($error['code'] == 'no_such_document' || $error['code'] == 'permission_read') {
+        if (($error['code'] ?? null) == 'no_such_document' || ($error['code'] ?? null) == 'permission_read') {
             $page = [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),

@@ -40,6 +40,12 @@ assertRoute(
 );
 
 assertRoute(
+    'PressDo\\App\\Controllers\\Pages\\RecentChanges',
+    (object) ['page' => 'RecentChanges'],
+    'Bundled navigation links should resolve through the public page aliases.'
+);
+
+assertRoute(
     null,
     (object) ['page' => '..\\member', 'menu' => 'login'],
     'Unexpected page segments should not resolve to a controller.'

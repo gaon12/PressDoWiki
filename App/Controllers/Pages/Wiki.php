@@ -3,6 +3,7 @@ namespace PressDo\App\Controllers\Pages;
 
 use PressDo\App\Models\{Backlink,Document,Star,ACL as ACLModels,Member,Files,Search,History};
 use PressDo\App\Core\Controller;
+use PressDo\App\Helpers\Hangul;
 use PressDo\App\Core\Response;
 use PressDo\App\Controllers\ACL;
 use PressDo\App\Helpers\{Namespaces,Languages,DefaultConfig, Config};
@@ -169,7 +170,7 @@ class Wiki extends Controller
                     foreach ($bl as $t => $b) {
                         // backlink 정렬
                         $firstchar = iconv_substr($t, 0, 1);
-                        $head = self::is_hangeul($firstchar) ? self::ko_head($firstchar) : $firstchar;
+                        $head = Hangul::initial($firstchar === false ? '' : $firstchar);
 
                         if (!isset($cat_documents[$n][$head]))
                             $cat_documents[$n][$head] = [];

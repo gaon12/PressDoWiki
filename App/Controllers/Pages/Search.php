@@ -15,44 +15,43 @@ class Search extends Controller
 
     public function makeData(): array
     {
-        if (!empty($_GET['q'])) {
-            $namespace = null;
-            if (in_array($_GET['namespace'], Namespaces::all()))
-                $namespace = $_GET['namespace']; // 추후 검색 제외 네임스페이스 구현
-
+        $keyword = $this->request->queryString('q');
+        $requestedNamespace = $this->request->queryString('namespace');
+        $namespace = Namespaces::validate($requestedNamespace) ? $requestedNamespace : null;
+        $target = $this->request->queryString('target');
+        if (!in_array($target, self::SEARCH_TARGETS, true)) {
             $target = 'title_content';
-            if (in_array($_GET['target'], self::SEARCH_TARGETS))
-                $target = $_GET['target'];
+        }
 
-            $searchData = self::searchQuery($_GET['q'], $target, $namespace);
-
-            foreach ($searchData as $k => $s) {
-                $searchData[$k] = [
+        $searchData = [];
+        if ($keyword !== '') {
+            foreach ($this->searchQuery($keyword, $target, $namespace) as $result) {
+                $excerpt = mb_substr($result['text'], 0, 256);
+                $highlight = '<span class="search-highlight">' . htmlspecialchars($keyword) . '</span>';
+                $searchData[] = [
                     'document' => [
-                        'namespace' => $s['namespace'],
-                        'title' => $s['title'],
-                        'forceShowNamespace' => self::forceShowNamespace($s['namespace'], $s['title'])
+                        'namespace' => $result['namespace'],
+                        'title' => $result['title'],
+                        'forceShowNamespace' => self::forceShowNamespace($result['namespace'], $result['title']),
                     ],
-                    // 추후 검색어의 정확한 파싱 + 텍스트 발췌 개선 필요
-                    'content' => str_replace($_GET['q'], '<span class="search-highlight">'.$_GET['q'].'</span>', mb_substr($s['text'], 0, 256))
+                    'content' => implode($highlight, array_map('htmlspecialchars', explode($keyword, $excerpt))),
                 ];
             }
-        } else
-            $searchData = [];
+        }
 
         $page = [
             'view_name' => 'search',
             'title' => Languages::get('page', 'Search'),
             'data' => [
                 'body' => [
-                    'query' => $_GET['q'],
-                    'target' => 'title_content',
+                    'query' => $keyword,
+                    'target' => $target,
                     'namespace' => $namespace
                 ],
                 'namespaces' => Namespaces::all(),
                 'page' => 0,
                 'result' => $searchData,
-                'resultCount' => 0,
+                'resultCount' => count($searchData),
                 'period' => 0
             ]
         ];

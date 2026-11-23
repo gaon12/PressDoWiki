@@ -19,12 +19,9 @@ class Contribution extends Controller
             exit;
         }
 
-        if (isset($_GET['from']))
-            $from = intval($_GET['from']);
-
-        if (isset($_GET['until']))
-            $until = intval($_GET['until']);
-
+        $from = (int) $this->request->queryString('from') ?: null;
+        $until = (int) $this->request->queryString('until') ?: null;
+        $count = 0;
         if ($this->uri_data->type == 'document') {
             $count = History::countContributionDocument($this->uri_data->target);
             $fetch = History::getContributionDocument($this->uri_data->target, $count, $from, $until);

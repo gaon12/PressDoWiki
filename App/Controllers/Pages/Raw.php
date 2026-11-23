@@ -32,7 +32,7 @@ class Raw extends Controller
             'customData' => []
         ];
 
-        if ($error['code'] == 'permission_read') {
+        if (($error['code'] ?? null) == 'permission_read') {
             $page = [
                 'view_name' => 'error',
                 'title' => Languages::get('page', 'error'),
@@ -49,7 +49,7 @@ class Raw extends Controller
             ];
         }
 
-        $rev = $_GET['uuid'] ?? $uuid;
+        $rev = $this->request->queryOptionalString('uuid');
         $doc = Document::load($uuid, $rev);
 
         if ($doc === null) {

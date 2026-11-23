@@ -32,10 +32,11 @@ class LoginHistory extends Controller
             'customData' => []
         ];
 
-        if(empty($_GET['username']))
+        $username = $this->request->queryString('username');
+        if ($username === '')
             return $page;
 
-        $m = Member::exist($_GET['username']);
+        $m = Member::exist($username);
         if (!$m) {
             $page['data'] = ['errbox' => 'err_wrong_username'];
             return $page;
@@ -49,7 +50,9 @@ class LoginHistory extends Controller
         $page['data']['username'] = $m['username'];
         
     
-        $dat = Member::loginHistory($m['uuid'], $this->session['member']['uuid'],$_GET['from'],$_GET['until']);
+        $from = (int) $this->request->queryString('from') ?: null;
+        $until = (int) $this->request->queryString('until') ?: null;
+        $dat = Member::loginHistory($m['uuid'], $this->session['uuid'], $from, $until);
         $page['data'] = [
             'from' => null,
             'until' => null,
@@ -63,6 +66,10 @@ class LoginHistory extends Controller
                 'datetime' => $h['datetime'],
                 'ip' => $h['ip']
             ]);
+        }
+
+        if ($page['data']['history'] === []) {
+            return $page;
         }
 
         $lt = Member::getLogintimeEnd($m['uuid']);

@@ -12,8 +12,9 @@
             <button class="btn-blue pressdo-btn" type="submit">{{ $lang['confirm'] }}</button>
         </div>
     </form>
-    @if (!empty($wiki['page']['data']['username']))<form method="POST" action="{{ $request_uri }}">
+    @if (!empty($wiki['page']['data']['perms']))<form method="POST" action="{{ $request_uri }}">
         @include('partials.csrf')
+        <input type="hidden" name="grant_permissions" value="1">
         <h3>{{ $wiki['page']['data']['username'] }}</h3>
         @foreach ($wiki['page']['data']['perms'] as $p)<div class="c form">
             <label for="{{ $p }}">{{ $p }}</label>

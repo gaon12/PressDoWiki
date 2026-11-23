@@ -83,10 +83,10 @@ class Member extends \PressDo\App\Core\Model
         $db = self::db();
         try{
             if (empty($email)) {
-                $d = $db->prepare("SELECT uuid, username, email, last_login_ua FROM member WHERE username=?");
+                $d = $db->prepare("SELECT uuid, username, email, last_login_ua, perm FROM member WHERE username=?");
                 $d->execute([$username]);
             } else {
-                $d = $db->prepare("SELECT uuid, username, email, last_login_ua FROM member WHERE email=? AND username IS NOT NULL");
+                $d = $db->prepare("SELECT uuid, username, email, last_login_ua, perm FROM member WHERE email=? AND username IS NOT NULL");
                 $d->execute([$email]);
             }
         } catch (PDOException $err) {
@@ -329,19 +329,32 @@ class Member extends \PressDo\App\Core\Model
         }
     }
 
-    public static function grantPermissions(string $executoruuid, string $targetuuid, array $perms, string $record): void
+    public static function grantPermissions(string $executoruuid, string $targetuuid, string $expected, array $perms, string $record): bool
     {
         $db = self::db();
-        $executoruuid = self::uuid2bin($executoruuid);
-        $targetuuid = self::uuid2bin($targetuuid);
-        $c = implode(',', $perms);
+        $executor = self::uuid2bin($executoruuid);
+        $target = self::uuid2bin($targetuuid);
+        $db->beginTransaction();
+
         try {
-            $e = $db->prepare("UPDATE `member` SET `perm`=? WHERE `uuid`=?");
-            $e->execute([$c,$targetuuid]);
-            $f = $db->prepare("INSERT INTO `BlockHistory` (id,executor_m,target_member,action,granted) VALUES(NULL,?,?,'grant',?)");
-            $f->execute([$executoruuid, $targetuuid, $record]);
-        } catch (PDOException $err) {
-            throw new ErrorException($err->getMessage().': Webauthn 목록 조회 중 오류 발생');
+            $update = $db->prepare("UPDATE member SET perm = ? WHERE uuid = ? AND COALESCE(perm, '') = ?");
+            $update->execute([implode(',', $perms), $target, $expected]);
+            if ($update->rowCount() !== 1) {
+                $db->rollBack();
+                return false;
+            }
+
+            $audit = $db->prepare(SqlDialect::normalizeIdentifiers(
+                "INSERT INTO `BlockHistory` (executor_m, target_member, action, granted) VALUES (?, ?, 'grant', ?)"
+            ));
+            $audit->execute([$executor, $target, $record]);
+
+            return $db->commit();
+        } catch (\Throwable $err) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $err;
         }
     }
 

@@ -106,7 +106,8 @@ class Model
         } catch (PDOException $err) {
             throw new ErrorException($err->getMessage() . ': 특별권한 조회 중 오류 발생');
         }
-        return explode(',', $d->fetch(PDO::FETCH_ASSOC)['perm']);
+        $permissions = $d->fetchColumn();
+        return is_string($permissions) && $permissions !== '' ? explode(',', $permissions) : [];
     }
 
     /**

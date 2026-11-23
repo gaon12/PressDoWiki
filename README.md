@@ -120,13 +120,7 @@ max, the current test suite, and known dependency advisories.
 설치에서는 레이아웃을 Blade로 옮기거나 기본 스킨을 선택하세요.
 사용자 정의 스킨의 POST 폼에는 뷰에 전달되는 `$csrfToken`을
 `_csrf` 숨은 필드로 포함하세요. Blade에서는 `@include('partials.csrf')`를
-사용할 수 있습니다.
-
-### 이메일 인증
-
-회원가입 링크는 발급 요청과 같은 IP에서 24시간 동안 사용할 수 있습니다.
-비밀번호 재설정 링크는 30분 동안 사용할 수 있습니다. 두 링크는 각각 성공한
-요청에서 한 번만 사용되며, 이전 형식의 링크는 새로 발급받아야 합니다.
+사용할 수 있습니다. 스킨의 JavaScript는 외부 스크립트 파일로 등록하세요.
 
 ### 지원 스킨
  - pressdo (기본 제공)
@@ -134,3 +128,9 @@ max, the current test suite, and known dependency advisories.
  - liberty (예정)
  - vector (예정)
  - buma (예정)
+
+## 이메일 인증
+
+회원가입 링크는 발급 요청과 같은 IP에서 24시간 동안 사용할 수 있습니다.
+비밀번호 재설정 링크는 30분 동안 사용할 수 있습니다. 두 링크는 각각 성공한
+요청에서 한 번만 사용되며, 이전 형식의 링크는 새로 발급받아야 합니다.

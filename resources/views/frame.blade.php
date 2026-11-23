@@ -65,27 +65,7 @@
     <link rel="stylesheet" href="/src/style/skin.css">
 </head>
 <body>
-    <script>
-        try {
-            switch (JSON.parse(localStorage.getItem("pressdo_settings") || "{}")["wiki.theme"]) {
-            case void 0:
-            case "auto":
-                var e,
-                    a = matchMedia("(prefers-color-scheme: dark)");
-                a && (e = a.matches ? 1 : 0);
-                break;
-            case "dark":
-                e = 1;
-                break;
-            default:
-                e = 0
-            }
-            var s = document.body.classList,
-                t = "pressdo-dark-mode",
-                d = "pressdo-light-mode";
-            e ? (s.add(t), s.remove(d)) : (s.add(d), s.remove(t))
-        } catch (r) {}
-    </script>
+    <script src="/src/script/theme.js"></script>
     <div id="app">
         <div class="{{ implode(' ', $skinConfig['body_classes'] ?? []) }}">
             {!! $body !!}

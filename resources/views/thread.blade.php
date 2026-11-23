@@ -110,16 +110,6 @@
                 @if (empty($wiki['session']['member']['username']))<p data-pressdo-warning-unlogined>{{ sprintf($lang['msg']['unlogined_comment'], $wiki['session']['ip']) }}</p>@endif
             </div>
             <button type="submit" @disabled($disabled1) class="pressdo-btn btn-wideright btn-blue">{{ $lang['submit'] }}</button>
-            <div style="clear: both;">
-                <div class="grecaptcha-badge" data-style="inline" style="width: 256px; height: 60px; box-shadow: gray 0px 0px 5px;">
-                    <div class="grecaptcha-logo">
-                        <iframe title="reCAPTCHA" src="https://www.google.com/recaptcha/api2/anchor?ar=1&k=6Le0YCgUAAAAAPuP955bk3npzh_ymfSd53DpI74j&co=aHR0cHM6Ly90aGVzZWVkLmlvOjQ0Mw..&hl=ko&v=6OAif-f8nYV0qSFmq-D6Qssr&size=invisible&badge=inline&cb=8wsokgsumi1k" width="256" height="60" role="presentation" name="a-p1qimm5s15r" frameborder="0" scrolling="no" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation allow-modals allow-popups-to-escape-sandbox"></iframe>
-                    </div>
-                    <div class="grecaptcha-error"></div>
-                    <textarea id="g-recaptcha-response-4" name="g-recaptcha-response" class="g-recaptcha-response" style="width: 250px; height: 40px; border: 1px solid rgb(193, 193, 193); margin: 10px 25px; padding: 0px; resize: none; display: none;"></textarea>
-                </div>
-                <iframe style="display: none;"></iframe>
-            </div>
         </form>
     </div>
 </div>

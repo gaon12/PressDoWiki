@@ -22,9 +22,6 @@
                 <a role="button" href="#" class="pressdo-btn btn-darkred" danger>차단</a>
                 @endif
             </div>
-            <div class="resize-observer" tabindex="-1">
-                <object aria-hidden="true" tabindex="-1" type="text/html" data="about:blank"></object>
-            </div>
         </div>
     </div>
 </div>@endforeach

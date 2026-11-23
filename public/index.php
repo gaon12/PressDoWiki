@@ -18,6 +18,8 @@ date_default_timezone_set(GeoIp::getTimezone($request->serverString('REMOTE_ADDR
 SessionLifecycle::start($request, (string) Config::get('wiki.canonical_url'));
 
 header('Content-Security-Policy: ' . Csp::headerValue());
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
 if (!in_array($request->method(), ['GET', 'HEAD', 'POST'], true)) {
     Response::methodNotAllowed('GET', 'HEAD', 'POST');
 }

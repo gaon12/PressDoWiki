@@ -80,6 +80,10 @@ try {
         failFrameTemplateTest('The Blade frame should render configured body classes.');
     }
 
+    if (!str_contains($html, '<script src="/src/script/theme.js"></script>') || str_contains($html, '<script>')) {
+        failFrameTemplateTest('The shipped frame should load the theme as an external script.');
+    }
+
     $frameData['wiki']['page']['view_name'] = 'edit';
     $editHtml = $renderer->render('frame', $frameData);
     if (!str_contains($editHtml, 'katex@0.18.1') || !str_contains($editHtml, '/src/script/math.js')) {

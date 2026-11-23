@@ -125,6 +125,11 @@ has no enforceable seams between them.
   Remember-me restores the existing registry entry, and credential lookups
   are repeated inside the login transaction. Local logout revokes that entry.
   Password reset removes all of the account's entries in the reset transaction.
+  The profile displays the current browser and allows revoking individual
+  entries or all other entries. Both actions are account-scoped POSTs with
+  CSRF validation. Revocation removes the session entry and its persistent
+  cookie digests together. The account lock orders bulk revocation against
+  new and restored logins.
 
 Performance optimization before these seams exist would mostly be guesswork.
 

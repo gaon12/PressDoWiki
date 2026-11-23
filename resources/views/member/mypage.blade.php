@@ -1,5 +1,9 @@
 @php
+    use PressDo\App\Infrastructure\Rendering\BrowserLabel;
     use PressDo\App\Infrastructure\Rendering\ViewTime;
+
+    $sessions = $wiki['page']['data']['sessions'] ?? [];
+    $currentSession = $wiki['session']['device_session'] ?? null;
 @endphp
 
 @if ($wiki['page']['data']['error'])<div class="a e">
@@ -72,3 +76,56 @@
         <button type="submit" class="btn-lightblue pressdo-btn-nonflex">{{ $lang['change'] }}</button>
     </div>
 </form>
+
+<section aria-labelledby="login-sessions-heading">
+    <h2 id="login-sessions-heading">{{ $lang['auth']['sessions'] }}</h2>
+    @if ($sessions === [])
+        <p>{{ $lang['auth']['session_empty'] }}</p>
+    @else
+        <div class="table-responsive">
+            <table class="pressdo-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ $lang['auth']['session_device'] }}</th>
+                        <th scope="col">{{ $lang['auth']['session_created'] }}</th>
+                        <th scope="col">{{ $lang['auth']['session_last_seen'] }}</th>
+                        <th scope="col">{{ $lang['auth']['session_logout'] }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($sessions as $device)
+                        @php
+                            $current = $device['id'] === $currentSession;
+                            $label = BrowserLabel::describe($device['user_agent']) ?: $lang['auth']['session_unknown'];
+                        @endphp
+                        <tr>
+                            <td>
+                                {{ $label }}
+                                @if ($current)<strong>{{ $lang['auth']['session_current'] }}</strong>@endif
+                            </td>
+                            <td>{!! ViewTime::absolute($device['created_at']) !!}</td>
+                            <td>{!! ViewTime::absolute($device['last_seen_at']) !!}</td>
+                            <td>
+                                <form method="post" action="{{ $current ? '/member/logout' : '/member/mypage' }}">
+                                    @include('partials.csrf')
+                                    @unless ($current)
+                                        <input type="hidden" name="session_action" value="revoke">
+                                        <input type="hidden" name="session_id" value="{{ $device['id'] }}">
+                                    @endunless
+                                    <button type="submit" class="pressdo-btn-nonflex btn-red">{{ $lang['auth']['session_logout'] }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @if (count($sessions) > 1)
+            <form method="post" action="/member/mypage">
+                @include('partials.csrf')
+                <input type="hidden" name="session_action" value="revoke_others">
+                <button type="submit" class="pressdo-btn-nonflex btn-red">{{ $lang['auth']['session_logout_others'] }}</button>
+            </form>
+        @endif
+    @endif
+</section>

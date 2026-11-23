@@ -136,6 +136,7 @@ foreach ([
     ['/edit_request/request/reopen', 'GET', 'absent', 405],
     ['/api/preview', 'POST', 'absent', 403],
     ['/admin/grant', 'POST', 'absent', 403],
+    ['/member/mypage', 'POST', 'absent', 403],
     ['/member/login', 'PUT', 'absent', 405],
     ['/api/preview', 'POST', 'session-valid', 200],
     ['/api/preview', 'POST', 'session-reset', 403],

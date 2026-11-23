@@ -498,4 +498,43 @@ class Member extends \PressDo\App\Core\Model
         (new SessionRegistry(self::db()))->revoke(self::uuid2bin($uuid), $id);
     }
 
+    /** @return list<array{id: string, user_agent: string, created_at: int, last_seen_at: int}> */
+    public static function loginSessions(string $uuid): array
+    {
+        return (new SessionRegistry(self::db()))->listActive(self::uuid2bin($uuid), time());
+    }
+
+    public static function revokeOtherLoginSessions(string $uuid, string $currentId, string $credential, ?string $targetId = null): bool
+    {
+        if ($targetId !== null && ($currentId === $targetId || !SessionRegistry::validId($targetId))) {
+            return false;
+        }
+
+        $db = self::db();
+        $member = self::uuid2bin($uuid);
+        $registry = new SessionRegistry($db);
+        $db->beginTransaction();
+        try {
+            // Serialize account-wide logout with login, restoration and password reset.
+            if (self::lockLoginAccount($db, $member) === false || !$registry->validate($member, $currentId, $credential, time())) {
+                $db->rollBack();
+                return false;
+            }
+
+            if ($targetId === null) {
+                $registry->revokeOthers($member, $currentId);
+                $removed = true;
+            } else {
+                $removed = $registry->revoke($member, $targetId);
+            }
+            $db->commit();
+            return $removed;
+        } catch (\Throwable $error) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $error;
+        }
+    }
+
 }

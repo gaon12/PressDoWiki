@@ -2,7 +2,7 @@
 namespace PressDo\App\Controllers\Pages\Member;
 
 use PressDo\App\Models\Member;
-use PressDo\App\Core\Controller;
+use PressDo\App\Core\{Controller, ProjectPaths, Response};
 use PressDo\App\Helpers\{Languages,Config};
 use lbuchs\WebAuthn\WebAuthn;
 
@@ -11,10 +11,14 @@ class Mypage extends Controller
     public function makeData(): array
     {
         if (!$this->session['member']) {
-            Header('Location: /member/login?redirect='.$_SERVER['REQUEST_URI']);
-            exit;
+            Response::redirect('/member/login?redirect=%2Fmember%2Fmypage');
         }
 
+        if ($this->request->isMethod('POST') && $this->request->hasPost('session_action')) {
+            $this->manageSessions();
+        }
+
+        $errmsg = null;
         if (!empty($_POST['delnm'])) {
             Member::deleteUserWebauthn($this->session['uuid'], $_POST['delnm']);
         } elseif (isset($_POST['challenge']) && json_decode($_POST['challenge'], true) !== null && !empty($_POST['passkeyName'])) {
@@ -46,6 +50,7 @@ class Mypage extends Controller
         $user = Member::getUserInfo($this->session['uuid']);
         $passkeys = Member::getUserWebauthn($this->session['uuid']);
 
+        $dowebauthn = false;
         if ($user['totp_secret']) {
             // initilaize passkey enrollment
             $dowebauthn = true;
@@ -70,12 +75,7 @@ class Mypage extends Controller
             $this->session['challenge'] = $challenge;
         }
 
-        $dirs = scandir('skins');
-
-        if (count($dirs) == 2)
-            $skins = [];
-        else
-            $skins = array_slice($dirs, 2);
+        $skins = array_slice(scandir(ProjectPaths::public('skins')) ?: [], 2);
 
         $page = [
             'view_name' => 'mypage',
@@ -85,14 +85,30 @@ class Mypage extends Controller
                 'skins' => $skins,
                 'totp' => ($user['totp_secret']),
                 'email' => $user['email'],
-                'perms' => explode(',', $user['perm']),
+                'perms' => explode(',', $user['perm'] ?? ''),
                 'webauthn' => $passkeys,
-                'webauthn_arg' => $dowebauthn ? json_encode($resp) : null
+                'webauthn_arg' => $dowebauthn ? json_encode($resp) : null,
+                'sessions' => Member::loginSessions($this->session['uuid']),
             ],
             'menus' => [],
             'customData' => []
         ];
         
         return $page;
+    }
+
+    private function manageSessions(): never
+    {
+        $action = $this->request->postString('session_action');
+        $target = $action === 'revoke' ? $this->request->postScalarString('session_id') : null;
+        if (!in_array($action, ['revoke', 'revoke_others'], true) || ($action === 'revoke' && $target === null)) {
+            Response::text('Invalid session action.', 422);
+        }
+
+        if (!Member::revokeOtherLoginSessions($this->session['uuid'], $this->session['device_session'], $this->session['credential'], $target)) {
+            Response::notFound();
+        }
+
+        Response::redirect('/member/mypage', 303);
     }
 }

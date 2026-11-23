@@ -64,7 +64,7 @@ $config['wiki.mark'] = 'NamuMark';
 if (($argv[1] ?? null) === '--request') {
     $fixture = json_decode(base64_decode($argv[2], true), true, flags: JSON_THROW_ON_ERROR);
     $_SERVER['REMOTE_ADDR'] = '192.0.2.20';
-    $_SERVER['REQUEST_METHOD'] = 'POST';
+    $_SERVER['REQUEST_METHOD'] = $fixture['method'];
     $_SERVER['REQUEST_URI'] = $fixture['uri'];
     parse_str(parse_url($fixture['uri'], PHP_URL_QUERY) ?? '', $_GET);
     $_POST = $fixture['post'];
@@ -83,9 +83,9 @@ if (($argv[1] ?? null) === '--request') {
     exit;
 }
 
-function startDatabaseRequest(string $uri, array $post, array $session, array $cookies, bool $gated = false): array
+function startDatabaseRequest(string $uri, array $post, array $session, array $cookies, bool $gated = false, string $method = 'POST'): array
 {
-    $fixture = base64_encode(json_encode(compact('uri', 'post', 'session', 'cookies', 'gated'), JSON_THROW_ON_ERROR));
+    $fixture = base64_encode(json_encode(compact('uri', 'post', 'session', 'cookies', 'gated', 'method'), JSON_THROW_ON_ERROR));
     $process = proc_open(
         [PHP_BINARY, __FILE__, '--request', $fixture],
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
@@ -96,7 +96,7 @@ function startDatabaseRequest(string $uri, array $post, array $session, array $c
     return [$uri, $process, $pipes];
 }
 
-function finishDatabaseRequest(array $request): int
+function finishDatabaseRequest(array $request, ?string &$body = null): int
 {
     [$uri, $process, $pipes] = $request;
     fclose($pipes[0]);
@@ -110,6 +110,7 @@ function finishDatabaseRequest(array $request): int
         $exit === 0 && $errors === '' && preg_match('/STATUS=(\d+)\z/', $output, $matches) === 1,
         "$uri should complete. Response: " . substr($output, -200) . ' Errors: ' . $errors,
     );
+    $body = substr($output, 0, -strlen($matches[0]));
 
     return (int) $matches[1];
 }
@@ -191,6 +192,15 @@ $now = time();
 $registered = $registry->create($actorId, 'Integration browser', $now, [SessionRegistry::REMEMBER => 600, SessionRegistry::TRUST => 600]);
 $registeredCookie = $registered['cookies'][SessionRegistry::REMEMBER];
 expectDatabaseFlow($registry->findByCookie(SessionRegistry::REMEMBER, $registeredCookie, $now) === ['id' => $registered['id'], 'member' => $actorId], 'The stored digest should identify its original session.');
+$stored = $db->prepare('SELECT remember_digest FROM member_sessions WHERE id = ?');
+$stored->execute([$registered['id']]);
+expectDatabaseFlow($stored->fetchColumn() === hash('sha256', $registeredCookie), 'Only the digest of the browser credential may be stored.');
+$stored->closeCursor();
+$actorCredential = Member::sessionCredential($actor['uuid']);
+expectDatabaseFlow($registry->validate($actorId, $registered['id'], $actorCredential, $now + 299), 'A registered device should validate its credential.');
+expectDatabaseFlow($registry->listActive($actorId, $now + 299)[0]['last_seen_at'] === $now, 'Repeated requests should not write activity more often than once every five minutes.');
+expectDatabaseFlow($registry->validate($actorId, $registered['id'], $actorCredential, $now + 300), 'A returning device should remain authenticated.');
+expectDatabaseFlow($registry->listActive($actorId, $now + 300)[0]['last_seen_at'] === $now + 300, 'A returning device should update its activity timestamp.');
 expectDatabaseFlow($registry->findByCookie(SessionRegistry::TRUST, $registeredCookie, $now) === null, 'Remember-me cookies must not grant second-factor trust.');
 expectDatabaseFlow($registry->findByCookie(SessionRegistry::REMEMBER, $registeredCookie, $now + 600) === null, 'The cookie expires independently of its session.');
 expectDatabaseFlow(!$registry->revoke(Model::uuid2bin($target['uuid']), $registered['id']), 'Another member must not be able to revoke the session.');
@@ -264,6 +274,41 @@ $identity = [
     'device_session' => $currentBrowser['device_session'],
     'member' => ['username' => $actor['username']],
 ];
+$selected = Member::login($actor['uuid'], $credential, $ip, 'Windows Chrome/120.0', ['szczecin' => 600, 'podgorica' => 600]);
+$other = Member::login($actor['uuid'], $credential, $ip, 'Android Firefox/120.0', ['szczecin' => 600]);
+$foreignCredential = Member::sessionCredential($target['uuid']);
+$foreign = Member::login($target['uuid'], $foreignCredential, $ip, 'iPhone Safari/605.1', ['szczecin' => 600, 'podgorica' => 600]);
+$profile = '/member/mypage';
+$html = null;
+expectDatabaseFlow(
+    finishDatabaseRequest(startDatabaseRequest($profile, [], $identity, [], method: 'GET'), $html) === 200
+        && str_contains($html, '현재 기기') && str_contains($html, 'Chrome · Windows')
+        && str_contains($html, $selected['device_session']) && !str_contains($html, $foreign['device_session']),
+    'The profile should list only the signed-in member’s devices and mark the current one.',
+);
+expectDatabaseResponse($profile, 404, ['session_action' => 'revoke', 'session_id' => $foreign['device_session']], $identity);
+expectDatabaseResponse($profile, 404, ['session_action' => 'revoke', 'session_id' => $identity['device_session']], $identity);
+$otherIdentity = $identity;
+$otherIdentity['device_session'] = $selected['device_session'];
+$remember = $selected['cookies']['szczecin'];
+expectDatabaseFlow(
+    finishDatabaseRequest(startDatabaseRequest($profile, [], [], ['szczecin' => $remember], method: 'GET')) === 200
+        && count(Member::loginSessions($actor['uuid'])) === 3,
+    'A remember-me request should restore an existing entry instead of registering a duplicate device.',
+);
+expectDatabaseResponse($profile, 303, ['session_action' => 'revoke', 'session_id' => $selected['device_session']], $identity);
+expectDatabaseFlow(Member::rememberCookieIdentity($remember) === null && Member::checkCookie('podgorica', $selected['cookies']['podgorica']) === null, 'Remote logout must invalidate both browser credentials.');
+expectDatabaseFlow(
+    finishDatabaseRequest(startDatabaseRequest($profile, [], $otherIdentity, ['szczecin' => $remember], method: 'GET')) === 302,
+    'A revoked device must be sent back to login even if it still presents a remember-me cookie.',
+);
+expectDatabaseResponse('/api/preview', 403, ['title' => 'Fixture', 'text' => 'Stale session'], $otherIdentity, ['szczecin' => $remember]);
+expectDatabaseFlow(Member::validateSession($actor['uuid'], $other['device_session'], $credential), 'Individual logout must preserve the other devices.');
+expectDatabaseResponse($profile, 303, ['session_action' => 'revoke_others'], $identity);
+expectDatabaseFlow(array_column(Member::loginSessions($actor['uuid']), 'id') === [$identity['device_session']], 'Bulk logout must preserve only the current device.');
+expectDatabaseFlow(Member::rememberCookieIdentity($other['cookies']['szczecin']) === null, 'Bulk logout must invalidate the other remember-me cookies.');
+expectDatabaseFlow(Member::validateSession($target['uuid'], $foreign['device_session'], $foreignCredential), 'Session management must not affect other accounts.');
+
 $perm = $db->prepare("UPDATE member SET perm = 'grant,mark_troll_revision,delete_thread' WHERE uuid = ?");
 SqlDialect::bindBinary($db, $perm, 1, Model::uuid2bin($actor['uuid']));
 $perm->execute();
@@ -316,5 +361,8 @@ expectDatabaseRace("/edit_request/$last/accept", "/edit_request/$last/close", $i
 $status = EditRequest::get($last)['status'];
 expectDatabaseFlow(in_array($status, ['accepted', 'close'], true), 'The winner must keep its final status.');
 expectDatabaseFlow(Model::getVersion($documentId) === ($status === 'accepted' ? 5 : 4), 'The document may only change if approval wins.');
+
+expectDatabaseResponse('/member/logout', 303, session: $identity);
+expectDatabaseFlow(Member::loginSessions($actor['uuid']) === [] && Member::checkCookie('podgorica', $trust) === null, 'Local logout must revoke the current entry and its trust cookie.');
 
 echo "Database security flow test passed ($driver)." . PHP_EOL;

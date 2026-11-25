@@ -1,14 +1,43 @@
 # PressDoWiki modernization plan
 
-This document records the current technical baseline and the architecture we are
-moving toward. It is intentionally blunt: preserving accidental architecture
-would make the rewrite slower and less safe.
+This document describes the current implementation, the August 2026 baseline,
+and the planned architecture.
 
-## Rendering migration status
+## Current implementation
 
-Bundled pages, partials, the frame, and the default skin now render with Blade.
-The application retains support for installed PHP skin layouts. Latte layouts
-need to be converted to Blade.
+- **Rendering.** Bundled pages, partials, the frame, and the default skin use
+  Illuminate View for Blade. Existing PHP skin layouts remain supported. The
+  bundled NamuMark renderer and its editor highlighting are maintained in this
+  repository. MediaWiki and BBCode output passes through the shared HTML
+  sanitizer. The Monaco bundle and worker are served from the site. CSP
+  restricts workers to the same origin and keeps CAPTCHA and the pinned KaTeX
+  assets on their documented endpoints. The editor lockfile overrides Monaco's
+  DOMPurify version for security fixes. Review the override when upgrading Monaco.
+- **Database access.** Models and persistence services use PDO and prepared
+  SQL. `SqlDialect` handles differences such as identifier quoting and
+  PostgreSQL's binary UUID binding. SQLite uses its transaction write lock
+  where server databases use row locks. Migration 1 adds login quotas, and
+  migration 2 adds the member session registry. Administrators apply them with
+  [the manual deployment procedure](update-protocol.md#manual-deployment).
+- **Authentication.** The front controller validates registered member
+  sessions before checking browser POST CSRF tokens. Remember-me and trusted
+  device tokens are stored as digests and rechecked inside the login
+  transaction. The profile supports individual and all-other-device logout.
+  Revocation removes the associated cookie digests, and password reset
+  removes every registered session for the account. Account and IP quotas
+  apply to password checks, second-factor checks, and login email delivery
+  across application workers that share the same database.
+- **Document writes.** Edit-request approvals use the same document lock as
+  ordinary edits and check the proposal's base revision under that lock.
+  Conflicting updates return HTTP 409. Concurrent approvals can append only
+  one revision for a given base.
+- **Verification.** [CI](../.github/workflows/ci.yml) runs `composer check` on
+  PHP 8.2, 8.3, and 8.4. PHPStan runs at level `max` on the paths listed in
+  [its configuration](../phpstan.neon.dist). The SQLite, MariaDB 10.11, and
+  PostgreSQL 16 flows cover data retention during upgrades, session and cookie
+  revocation, permission grants, and edit-request races. The MariaDB CI image
+  exercises the InnoDB fallback search table. Mroonga search needs its own
+  deployment verification.
 
 ## The roast (2026-08-10 baseline)
 
@@ -64,31 +93,15 @@ has no enforceable seams between them.
 - Upload validation trusts the browser-provided MIME type, accepts SVG, and mixes
   validation, image decoding, storage, and document creation without a
   transaction.
-- The CSP restricts scripts to external sources on its allowlist and workers
-  to the current origin. The Monaco editor and its worker are built from the
-  pinned npm lockfile and served with the release. The bundled NamuMark
-  highlighting and toolbar are maintained in this repository. Preview and raw
-  editing continue to work in a source checkout without the Monaco bundle.
-  The lockfile overrides Monaco's DOMPurify pin with version 3.5.0 to pick up
-  security fixes. Review the override when upgrading Monaco.
-  CAPTCHA and KaTeX still use their configured or pinned external endpoints.
-  The KaTeX allowlist covers the pinned scripts, stylesheet, and font directory.
+- The CSP permits inline scripts, `unsafe-eval`, broad third-party hosts, and
+  wildcard child/media sources. It offers much less protection than its presence
+  suggests.
 - Error handling suppresses notices and warnings in the front controller. That
   hides defects and risks returning partial responses instead of recording a
   controlled failure.
 - Authentication state is copied between a controller property and `$_SESSION`.
-  `SessionLifecycle` now sets cookie policy, rotates the ID after login, and
-  clears the session on logout. Before checking CSRF, the front controller
-  compares the authenticated session's credential with the current account
-  credential. The session stores a SHA-256 digest of the password verifier.
-  Password reset revokes sessions and pending login challenges on their next
-  request, and deletes persistent cookies in the reset transaction. This
-  rollout uses the existing database schema.
-- The versioned login-limit table uses atomic per-account and per-IP reservations
-  before password checks, second-factor checks, and login email dispatch.
-  The counters are shared across application workers using the same database.
-  Existing challenge expiry and retry limits continue to apply. Bucket keys are
-  hashed and expired counters are cleared opportunistically during login.
+  There is no single place that guarantees session-ID rotation after login,
+  cookie policy, or logout invalidation.
 
 ### Performance work has no reliable measurement point
 
@@ -100,36 +113,6 @@ has no enforceable seams between them.
   cost and prevent normal dependency updates.
 - Supporting many nominal database drivers through handwritten SQL branches
   creates complexity without a compatibility test matrix for those drivers.
-  CI now imports the shipped schemas and runs an integration flow against
-  MariaDB 10.11 and PostgreSQL 16. The same flow runs on SQLite with
-  `composer test`. It checks authentication and session credentials, permission
-  persistence and audit, and edit-request transitions with revision creation.
-  Database integration tests also drive the front controller with real login,
-  permission grant, and edit-request approval requests. It checks that denied
-  approvals leave the request open and authorized approvals append a revision.
-  Concurrent approvals share the same document lock as normal edits. A
-  stale proposal cannot publish over a newer revision, and status updates
-  check their expected state inside the database write. Conflicting requests
-  return HTTP 409. The suite races approvals and closure on all three engines.
-  MariaDB requires a character delta when inserting an edit request. The
-  creation path now records the initial delta against the source revision.
-  The stock MariaDB CI image uses InnoDB for the search table, outside the
-  coverage of this flow.
-  New schema changes use `php tools/migrate.php`. CI creates an account on
-  the installation schema before upgrading, then checks that the account
-  survives and re-running the migrator leaves one record per version.
-  Migration 2 adds a registry of member sessions with their creation and
-  activity timestamps and hashed browser credentials. Its runtime queries
-  share the PDO SQL used for all three database engines.
-  The front controller requires a registered session before validating CSRF.
-  Remember-me restores the existing registry entry, and credential lookups
-  are repeated inside the login transaction. Local logout revokes that entry.
-  Password reset removes all of the account's entries in the reset transaction.
-  The profile displays the current browser and allows revoking individual
-  entries or all other entries. Both actions are account-scoped POSTs with
-  CSRF validation. Revocation removes the session entry and its persistent
-  cookie digests together. The account lock orders bulk revocation against
-  new and restored logins.
 
 Performance optimization before these seams exist would mostly be guesswork.
 
@@ -173,30 +156,20 @@ These names describe ownership, not ceremony. A simple read use case may be one
 class. We will introduce interfaces only at real boundaries such as storage,
 mail, rendering, clock/randomness, and persistence that needs test doubles.
 
-## Framework components we will use
+## Framework component direction
 
-PHP 8.2 remains a hard runtime target. Laravel 13 requires PHP 8.3, while Laravel
-12 supports PHP 8.2 but is already near the end of bug-fix support. A full
-Laravel 12 rewrite would therefore begin on an aging framework line.
+PHP 8.2 remains the minimum runtime. The application delegates rendering,
+mail, and HTML sanitization to maintained components. The next architecture
+steps build on those boundaries.
 
-Instead, solved infrastructure problems will be delegated to maintained
-components behind small application-owned interfaces:
-
-- Symfony 7.4 LTS components for HTTP request/response handling, routing,
-  dependency injection, configuration, and error handling. This line supports
-  PHP 8.2 and gives the application one coherent request lifecycle.
-- Illuminate View 12 for Blade compilation and rendering. Application code will
-  depend on a `TemplateRenderer` contract, not directly on Illuminate, so the
-  adapter can move to Illuminate 13 when PHP 8.3 becomes the minimum.
-- PHPUnit for tests and PHPStan level max for static analysis.
-- PHP-CS-Fixer for deterministic formatting. Formatting-only changes stay in
-  their own commits when they touch legacy code.
-- PDO initially, but injected through a connection/transaction boundary. We
-  will not add a generic repository for every table or build another query
-  builder. Database portability claims must be backed by CI tests.
-
-This is intentionally not “half of Laravel rebuilt locally.” Symfony owns the
-HTTP kernel concerns, Illuminate owns Blade, and PressDoWiki owns wiki behavior.
+- Keep Blade behind the existing `TemplateRenderer` contract.
+- Consolidate HTTP request, response, routing, configuration, and error
+  handling behind a Symfony-based adapter. The current application uses
+  PressDoWiki's own HTTP helpers.
+- Move standalone PHP tests to PHPUnit as slices gain reusable fixtures. Keep
+  PHPStan at level `max` and expand the configured paths as code is migrated.
+- Inject PDO connections and define transaction boundaries within each
+  migrated use case. Validate SQL portability with engine-specific CI jobs.
 
 ## Migration rules
 
@@ -224,17 +197,17 @@ HTTP kernel concerns, Illuminate owns Blade, and PressDoWiki owns wiki behavior.
 
 ## Migration sequence
 
-1. Establish honest tooling: PHP 8.2 CI, formatting, dependency audit, PHPUnit,
-   and a PHPStan max ratchet that names the code it genuinely covers.
-2. Add the application bootstrap and Symfony request/response boundary while
-   keeping a legacy controller adapter for unchanged routes.
-3. Add the Blade renderer and migrate the frame plus one read-only route as a
-   proof of the new boundary.
-4. Extract identity/session/CSRF handling before migrating write routes.
-5. Migrate feature by feature: wiki reads, edits/history, discussions, members,
+CI, formatting, dependency audits, Blade rendering, and shared session and
+CSRF checks are in place. The remaining steps are:
+
+1. Add the application bootstrap and Symfony request/response boundary while
+   keeping a legacy controller adapter for existing routes.
+2. Introduce PHPUnit fixtures and expand PHPStan coverage as use cases move
+   across the new boundary.
+3. Migrate feature by feature across wiki reads, edits/history, discussions, members,
    ACL/admin, and uploads.
-6. Remove the legacy controller/model base classes after no route reaches them.
-7. Profile representative read, edit, history, search, and discussion requests;
+4. Remove the legacy controller/model base classes after routes have migrated.
+5. Profile representative read, edit, history, search, and discussion requests,
    then add query changes or caches with measured before/after results.
 
 ## Definition of done for a migrated slice

@@ -4,9 +4,13 @@ PressDoWiki ships its own NamuMark-compatible renderer. It does not copy or
 translate an AGPL parser, and contributors implementing this module must not use
 third-party parser source code as a reference. Compatibility is derived from
 publicly observable syntax behaviour and new tests written for this repository.
-The repository-wide contribution rules are recorded in
-`docs/clean-room-policy.md`, and the machine-readable component declaration is
-`config/clean-room-components.json`.
+The [contribution rules](clean-room-policy.md) and
+[component declaration](../config/clean-room-components.json) record the
+implementation boundary.
+
+Set `wiki.mark` to `NamuMark` in `config/config.json` to use the renderer.
+The [editor build](../README.md#편집기-빌드) supplies source highlighting in
+Monaco. Rendered articles show code blocks as escaped literal text.
 
 ## Compatibility order
 
@@ -29,7 +33,7 @@ are rendered through a dedicated table parser. Cells can span columns with
 `[* text]`, and named notes use `[*name text]` followed by `[*name]` for
 additional references. Notes appear at the end of a fragment or at a standalone
 `[각주]` or `[footnote]` marker. General table attributes, nested footnotes,
-other macros, includes, files, syntax highlighting, and parameterized styling
+other macros, includes, files, highlighted code output, and parameterized styling
 remain unsupported.
 
 The table and footnote syntax follows the

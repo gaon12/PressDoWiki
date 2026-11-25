@@ -16,16 +16,20 @@ PHP 8.2 이상과 Composer 2가 필요합니다. MariaDB/MySQL, SQLite, PostgreS
 사용할 수 있습니다. PHP에서 선택한 DB의 PDO 드라이버를 활성화하세요.
 
 1. `composer install`을 실행합니다.
-2. `templates/`의 `config.json`, `settings.json`, `namespace.json`을 `config/`로 복사합니다.
-   `config/config.json`에 DB 연결 정보, `wiki.domain`, `wiki.front_page`, `wiki.timezone`과 저장소 설정을 입력합니다.
-3. 아래 DB별 설정에 따라 초기 스키마를 적용합니다.
-4. 웹 서버의 문서 루트를 `public/`으로 지정합니다. 로컬에서는
+2. `templates/config.json`을 `config/config.json`으로 복사합니다.
+   DB 연결 정보, `wiki.domain`, `wiki.canonical_url`, `wiki.front_page`,
+   `wiki.timezone`과 저장소 설정을 입력합니다.
+3. 새 데이터베이스에 [DB별 설치 스키마](#database-setup)를 적용합니다.
+   기존 설치는 DB를 백업하고 [업그레이드 절차](docs/update-protocol.md#manual-deployment)를 따릅니다.
+4. 저장소 루트에서 `php tools/migrate.php`를 실행합니다.
+5. 웹 서버의 문서 루트를 `public/`으로 지정합니다. 로컬에서는
    `php -S 127.0.0.1:8080 -t public`으로 시작할 수 있습니다.
 
 파일 업로드는 로컬 저장소 또는 S3 호환 저장소를 사용할 수 있습니다. 업로드를
 활성화하면 PHP의 `upload_max_filesize`와 `post_max_size`를 조정하세요.
 방문자 위치 기능에는 MaxMind GeoIP2 City 데이터베이스가 필요합니다.
-PostgreSQL 검색은 `LIKE`를 사용합니다.
+나무마크를 사용하려면 `wiki.mark`를 `NamuMark`로 설정하세요.
+[지원 문법과 제한](docs/namumark-clean-room.md)을 확인할 수 있습니다.
 
 MediaWiki와 BBCode의 렌더링 결과는 안전한 HTML 요소와 링크만 허용합니다.
 기존 문서의 임의 HTML 속성, 인라인 스타일, 폼과 iframe은 렌더링에서 걸러집니다.
@@ -39,7 +43,8 @@ MediaWiki와 BBCode의 렌더링 결과는 안전한 HTML 요소와 링크만 �
 - PHP extensions required by Composer dependencies and runtime features, including PDO and the driver for your database
 - MariaDB/MySQL, SQLite, or PostgreSQL
 - A web server that uses `public/` as the document root
-- Optional: MaxMind GeoIP2 city database, S3-compatible object storage, SMTP, and S/MIME certificate files
+- SMTP for account email
+- Optional MaxMind GeoIP2 city database, S3-compatible object storage, and S/MIME certificate files
 
 Composer resolves the lock file against PHP 8.2 so releases remain installable on
 every supported PHP version. If `composer install` fails locally, check `php -v`
@@ -47,37 +52,48 @@ first.
 
 ### Configuration
 
-Create runtime config files from the templates:
+Copy the default configuration into place:
 
 ```sh
 cp templates/config.json config/config.json
-cp templates/settings.json config/settings.json
-cp templates/namespace.json config/namespace.json
 ```
 
-Edit `config/config.json` before starting the app. At minimum, set the database keys, `wiki.domain`, `wiki.front_page`, `wiki.timezone`, and storage settings. For local file uploads, use the local storage configuration supported by the application; for S3, fill the `storage.*` keys.
+Set the database keys, `wiki.domain`, `wiki.canonical_url`, `wiki.front_page`,
+`wiki.timezone`, and storage settings in `config/config.json`. Use the public
+HTTPS origin as the canonical URL so the PHP session cookie has the Secure flag
+when TLS terminates at a reverse proxy. Remember-me and trusted-device cookies
+also use the Secure flag. The bundled Korean namespaces load automatically. To
+customize namespaces, place `namespace.json` under `config/language/<wiki.language>/`.
 
 ### Database Setup
 
-For MariaDB/MySQL:
+Import the matching schema into an empty database, then run the
+[versioned migrations](#database-upgrades). For MariaDB/MySQL, set
+`database.type` to `mysql` and enable `pdo_mysql`:
 
 ```sh
 mysql -u <user> -p <database> < templates/database_scheme.sql
 ```
 
-For SQLite:
+For SQLite, set `database.type` to `sqlite`, set `database.name` to the database
+file path, and enable `pdo_sqlite`:
 
 ```sh
 sqlite3 path/to/wiki.sqlite < templates/database_scheme.sqlite.sql
 ```
 
-Then set `database.type` and `database.name` in `config/config.json`. For SQLite, `database.name` should be the SQLite file path.
-
-For PostgreSQL, set `database.type` to `pgsql` and fill `database.host`, `database.port`, `database.name`, `database.user`, and `database.password`. PostgreSQL support currently shares the generic SQL dialect layer and uses LIKE-based search fallback instead of MySQL full-text search.
+For PostgreSQL, set `database.type` to `pgsql` and enable `pdo_pgsql`:
 
 ```sh
 psql -U <user> -d <database> -f templates/database_scheme.pgsql.sql
 ```
+
+For either server database, set `database.host`, `database.port`,
+`database.name`, `database.user`, and `database.password`.
+
+The application uses PDO with prepared SQL. `SqlDialect` handles differences
+such as identifier quoting and binary UUID binding. PostgreSQL search uses
+`LIKE`, and the MariaDB installation schema declares a Mroonga search table.
 
 ### Install Dependencies
 
@@ -99,7 +115,9 @@ php tools/migrate.php
 
 Use a database account with permission to create tables for the upgrade. Run a
 single migration process for each database. An interrupted run can be retried.
-The installation SQL files reset tables and are for new databases.
+The installation SQL files reset tables and are for new databases. See the
+[deployment and verification steps](docs/update-protocol.md#manual-deployment)
+for existing installations.
 
 ### Run Locally
 
@@ -145,6 +163,11 @@ max, the current test suite, and known dependency advisories.
 
 ## 이메일 인증
 
+회원가입, 비밀번호 재설정, 이메일을 통한 2단계 인증에는 SMTP 설정이
+필요합니다. `config/config.json`에서 `mail.smtp_host`, `mail.smtp_port`,
+`mail.smtp_username`, `mail.smtp_password`, `mail.smtp_address`를 설정하세요.
+메일 발신자 이름은 `wiki.site_name_en`을 사용합니다.
+
 회원가입 링크는 발급 요청과 같은 IP에서 24시간 동안 사용할 수 있습니다.
 비밀번호 재설정 링크는 30분 동안 사용할 수 있습니다. 두 링크는 각각 성공한
 요청에서 한 번만 사용되며, 이전 형식의 링크는 새로 발급받아야 합니다.
@@ -152,6 +175,8 @@ max, the current test suite, and known dependency advisories.
 비밀번호를 재설정하면 로그인 유지 쿠키와 신뢰 기기 쿠키가 즉시 폐기됩니다.
 이미 로그인한 브라우저와 진행 중인 2단계 인증은 다음 요청부터 새 비밀번호로
 다시 로그인해야 합니다.
+
+## 로그인한 기기
 
 세션 관리 기능을 처음 배포할 때는 마이그레이션 2를 적용합니다. 기존
 브라우저는 한 번 다시 로그인하여 세션을 등록합니다. 새 로그인 유지·신뢰
@@ -167,6 +192,8 @@ max, the current test suite, and known dependency advisories.
 로그인 유지·신뢰 쿠키가 없는 세션 기록은 마지막으로 기록된 활동에서
 24시간이 지나면 목록에서 만료됩니다.
 활성 로그인 유지·신뢰 쿠키는 각 쿠키의 유효 기간까지 관리할 수 있습니다.
+
+## 로그인 시도 제한
 
 로그인은 계정과 접속 IP별로 아래 횟수를 허용하며, 새 브라우저 세션에도
 같은 한도가 적용됩니다. 사용자 이름과 이메일은 같은 계정 한도를 공유합니다.
@@ -187,9 +214,11 @@ max, the current test suite, and known dependency advisories.
 `composer test`는 임시 SQLite DB로 회원가입, 로그인, 비밀번호 재설정,
 권한 부여와 감사 기록, 편집 요청의 리비전 생성을 확인합니다. GitHub Actions는
 같은 테스트를 MariaDB 10.11과 PostgreSQL 16에서도 실행합니다.
-세 DB에서 실제 로그인, 권한 부여, 편집 요청 승인 POST를 실행해
-허용·거부 결과와 저장된 변경을 확인합니다. 두 요청을 동시에 보내
-같은 리비전에 대해 승인이 한 번만 기록되는지도 검사합니다.
+세 DB에서 기존 계정을 보존하는 스키마 업그레이드, 로그인 제한, 다른
+계정의 세션 종료 차단, 종료된 기기의 쿠키 재사용 차단을 확인합니다.
+권한 부여와 편집 요청 승인도 실제 POST로 검증하며, 요청이 겹쳐도 같은
+리비전에 승인이 한 번만 기록되는지 검사합니다. MariaDB CI는 검색 테이블에
+InnoDB를 사용하며 Mroonga 검색 동작은 별도 검증 범위입니다.
 
 편집 요청은 작성의 기준이 된 문서 리비전이 최신일 때 승인됩니다.
 문서가 그사이 바뀌었다면 현재 내용을 기준으로 새 요청을 작성하세요.
@@ -201,12 +230,13 @@ max, the current test suite, and known dependency advisories.
 `php tests/Integration/DatabaseSecurityFlowTest.php`를 실행합니다. 접속 설정은
 `PRESSDO_TEST_DB_HOST`, `PRESSDO_TEST_DB_PORT`, `PRESSDO_TEST_DB_NAME`,
 `PRESSDO_TEST_DB_USER`, `PRESSDO_TEST_DB_PASSWORD`로 지정합니다.
-테스트는 DB에 임의의 계정, 편집 요청과 감사 기록을 생성합니다.
+테스트는 필요한 마이그레이션을 적용하고 테스트 계정, 세션, 편집 요청과
+감사 기록을 생성합니다.
 
 ## 편집기 빌드
 
 원문 편집과 미리보기는 PHP 소스 설치에서 바로 사용할 수 있습니다.
-공식 릴리스에는 Monaco 편집기가 포함됩니다. Git 체크아웃에서 Monaco 탭을
+태그 빌드의 ZIP에는 Monaco 편집기가 포함됩니다. Git 체크아웃에서 Monaco 탭을
 활성화하려면 Node.js 24로 아래 명령을 실행하세요.
 
 ```sh
@@ -218,3 +248,10 @@ npm --prefix tools/editor run build
 편집기 파일을 CDN 없이 같은 사이트에서 제공하며, `wiki.editor_version`
 설정은 더 이상 사용하지 않습니다. 데스크톱에서 Monaco 탭을 처음 열 때
 파일을 내려받습니다. 모바일과 빌드가 없는 설치에서는 원문으로 편집합니다.
+
+## 프로젝트 문서
+
+- [구현 현황과 현대화 계획](docs/modernization.md)
+- [운영 배포 절차와 자동 업데이트 설계](docs/update-protocol.md)
+- [나무마크 지원 문법](docs/namumark-clean-room.md)
+- [클린룸 기여 정책](docs/clean-room-policy.md)

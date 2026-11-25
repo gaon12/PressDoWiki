@@ -1,5 +1,41 @@
 # Core update protocol
 
+## Manual deployment
+
+The [release workflow](../.github/workflows/release.yml) builds a ZIP artifact
+from each `v*` tag. It includes production Composer dependencies and the built
+Monaco editor. For a deployment from a Git checkout, install Composer
+dependencies and build the optional editor as described in the
+[README](../README.md#편집기-빌드).
+
+1. Stage the new files and retain the installation's `config/` overrides, any
+   custom skins, and its existing upload storage. Keep the document root at
+   `public/`.
+2. Pause traffic to the installation, then back up the database and the
+   installed application files. For a deployment with multiple web instances,
+   keep traffic paused until all instances are ready to serve the same version.
+3. From the new application directory, confirm that `config/config.json` points
+   to the intended database. Run `php tools/migrate.php` once per database using
+   credentials allowed to create tables. Record the reported migration numbers.
+   Re-running the command after a successful upgrade reports
+   `Database is up to date.`
+4. Activate the new files and verify that a public page renders and a user can
+   sign in and see **내 정보 → 로그인한 기기**. With two browser sessions on a
+   test account, confirm that ending the other session sends that browser back
+   to login even when it presents its login cookie. Resume traffic after
+   verification.
+
+When deploying the session registry for the first time, users sign in again once
+to register their browsers. Migration 1 adds `login_rate_limits` and migration 2
+adds `member_sessions`. The installer SQL under `templates/` drops application
+tables and is reserved for initializing a fresh database.
+
+If verification fails while traffic is paused, restore the matching file and
+database backups before reopening the site. Preserve and reconcile any writes
+made after cutover before restoring a database snapshot.
+
+## Planned automatic updater
+
 PressDoWiki must never treat a downloadable ZIP as trusted merely because it was
 served over HTTPS. The updater is split into explicit stages so a failure cannot
 silently leave a partially updated installation.
@@ -16,19 +52,28 @@ silently leave a partially updated installation.
    clear caches, and leave maintenance mode.
 7. If any step fails, restore the file and database backups before serving traffic.
 
-The current implementation covers stages 2 through 4 as pure, tested trust
-boundaries. It intentionally does not yet overwrite live files. Network fetching,
-the administrator status screen, backup adapters, staged extraction, migration,
-atomic activation, and rollback will be added as separate reviewed commits.
+The [manifest parser](../App/Update/ReleaseManifest.php) and
+[verifier](../App/Update/ReleaseVerifier.php) cover manifest parsing, signature
+and compatibility checks, and verification of a local archive's size and
+SHA-256. Automatic fetching, signed artifact publication, staged activation,
+and rollback remain planned. Administrators run schema migrations through
+the manual deployment procedure.
 
 ## Signed payload version 1
 
 The signature covers a UTF-8, LF-separated payload rather than serialized JSON.
-It begins with `PressDoWiki release manifest v1`, contains each manifest field in
-the documented order, and ends in an LF. JSON whitespace and key order therefore
-cannot change what is authenticated.
+It begins with `PressDoWiki release manifest v1`. The following lines contain
+the fields below in `key=value` form. The payload ends with an LF.
 
-Required JSON fields are `version`, `minimum_php`, `maximum_php_exclusive`,
-`archive_url`, `sha256`, `size`, `released_at`, and `signature`. Archives must use
-HTTPS. The signature is base64-encoded RSA PKCS#1 v1.5 with SHA-256; the archive
-digest is lowercase hexadecimal SHA-256.
+1. `version`
+2. `minimum_php`
+3. `maximum_php_exclusive`
+4. `archive_url`
+5. `sha256`
+6. `size`
+7. `released_at`
+
+The JSON manifest also carries `signature`, the base64-encoded RSA PKCS#1 v1.5
+signature using SHA-256. The archive URL uses HTTPS, `size` is the byte count,
+and `sha256` is the lowercase hexadecimal archive digest. The
+`released_at` field uses RFC 3339 with whole seconds.
